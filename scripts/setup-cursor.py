@@ -140,12 +140,54 @@ def setup_mcp_config(config_type: str, variant: str | None = None):
     print(f"Configuration file: {config_file}")
     print()
     
-    # Get paths
-    python_exe = get_python_executable(project_dir, is_workspace)
-    if is_workspace:
-        mcp_script = './src/mcp_tools.py'
+    # Ask which transport to use
+    while True:
+        print("Which transport would you like to use?")
+        print("1. stdio - Local Python process (default)")
+        print("2. sse - Network connection (for Docker or remote servers)")
+        print()
+        
+        transport_choice = input("Enter your choice [1-2] (default: 1): ").strip()
+        if not transport_choice:
+            transport_choice = '1'
+        
+        if transport_choice in ['1', '2']:
+            break
+        
+        print_color("Invalid choice. Please enter 1 or 2.", Colors.RED)
+        print()
+    
+    print()
+    use_sse = transport_choice == '2'
+    
+    # Get configuration based on transport type
+    if use_sse:
+        # SSE configuration
+        print("Enter the MCP server URL details:")
+        host = input("Host (default: localhost): ").strip() or "localhost"
+        port = input("Port (default: 8000): ").strip() or "8000"
+        
+        server_config = {
+            "url": f"http://{host}:{port}/sse"
+        }
+        
+        config_details = f"  URL: http://{host}:{port}/sse"
     else:
-        mcp_script = str(project_dir / 'src' / 'mcp_tools.py')
+        # stdio configuration
+        python_exe = get_python_executable(project_dir, is_workspace)
+        if is_workspace:
+            mcp_script = './src/mcp_tools.py'
+        else:
+            mcp_script = str(project_dir / 'src' / 'mcp_tools.py')
+        
+        server_config = {
+            "command": python_exe,
+            "args": [mcp_script]
+        }
+        
+        config_details = f"  Command: {python_exe}\n  Script: {mcp_script}"
+    
+    print()
     
     # Create directory if it doesn't exist
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -167,10 +209,7 @@ def setup_mcp_config(config_type: str, variant: str | None = None):
         settings['mcpServers'] = {}
     
     # Add or update the evo-mcp server configuration
-    settings['mcpServers']['evo-mcp'] = {
-        "command": python_exe,
-        "args": [mcp_script]
-    }
+    settings['mcpServers']['evo-mcp'] = server_config
     
     # Write the updated settings to file
     try:
@@ -180,16 +219,18 @@ def setup_mcp_config(config_type: str, variant: str | None = None):
         print_color("✓ Successfully added Evo MCP configuration", Colors.GREEN)
         print()
         print("Configuration details:")
-        print(f"  Command: {python_exe}")
-        print(f"  Script: {mcp_script}")
+        print(config_details)
         print()
         print("Next steps:")
-        print("Restart Cursor or reload the window")
-        print()
-        print("Note: This configuration uses the Python interpreter:")
-        print(f"  {python_exe}")
-        print("If you need to use a different Python environment, activate it")
-        print("and run this setup script again.")
+        if use_sse:
+            print("1. Start your MCP server with SSE transport enabled")
+            print("   For Docker: docker-compose up -d")
+            print("2. Restart Cursor or reload the window")
+        else:
+            print("Restart Cursor or reload the window")
+            print()
+            print("Note: This configuration uses the Python interpreter:")
+            print(config_details.split('\n')[0].replace('  Command: ', '  '))
     except (IOError, OSError) as e:
         print_color(f"✗ Failed to update configuration file: {e}", Colors.RED)
         sys.exit(1)

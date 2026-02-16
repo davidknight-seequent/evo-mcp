@@ -40,18 +40,41 @@ docker-compose down
 
 ### VS Code Integration
 
+#### Option 1: SSE Transport (Recommended for Docker)
+
+Start the server with SSE transport:
+```bash
+# In .env, set:
+# MCP_TRANSPORT=sse
+# MCP_PORT=8000
+
+docker-compose up -d
+```
+
 Add to your VS Code settings (`.vscode/settings.json` or via UI):
 
 ```json
 {
-  "mcp-client": [
-    {
-      "name": "evo-mcp-docker",
+  "servers": {
+    "evo-mcp-docker": {
+      "type": "sse",
+      "url": "http://localhost:8000/sse"
+    }
+  }
+}
+```
+
+#### Option 2: stdio via Docker
+
+```json
+{
+  "servers": {
+    "evo-mcp-docker": {
       "type": "stdio",
       "command": "docker",
       "args": ["run", "--rm", "-i", "--env-file", ".env", "--mount", "type=volume,source=evo-mcp-state,destination=/app/state", "evo-mcp-server"]
     }
-  ]
+  }
 }
 ```
 
@@ -59,20 +82,44 @@ Add to your VS Code settings (`.vscode/settings.json` or via UI):
 
 ```json
 {
-  "mcp-client": [
-    {
-      "name": "evo-mcp-docker",
+  "servers": {
+    "evo-mcp-docker": {
       "type": "stdio",
       "command": "docker-compose",
       "args": ["exec", "-T", "evo-mcp", "python", "/app/src/mcp_tools.py"]
     }
-  ]
+  }
 }
 ```
 
 ### Cursor Integration
 
-Similar configuration in Cursor's MCP settings, using the docker-compose approach.
+#### Option 1: SSE Transport (Recommended for Docker)
+
+Start the server with SSE transport (see VS Code instructions above), then add to Cursor's MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "evo-mcp-docker": {
+      "url": "http://localhost:8000/sse"
+    }
+  }
+}
+```
+
+#### Option 2: stdio via Docker
+
+```json
+{
+  "mcpServers": {
+    "evo-mcp-docker": {
+      "command": "docker-compose",
+      "args": ["exec", "-T", "evo-mcp", "python", "/app/src/mcp_tools.py"]
+    }
+  }
+}
+```
 
 ## Container Architecture
 

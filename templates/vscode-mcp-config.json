@@ -1,9 +1,15 @@
 {
 	"servers": {
 		"evo-mcp": {
+			// Option 1: stdio transport (local Python process)
 			"type": "stdio",
 			"command": "c:\\Dev\\evo-mcp\\venv\\Scripts\\python.exe",
-			"args": ["c:\\Dev\\evo-mcp\\src\\mcp_tools.py"],
+			"args": ["c:\\Dev\\evo-mcp\\src\\mcp_tools.py"]
+			
+			// Option 2: SSE transport (for Docker or remote servers)
+			// Uncomment and modify the following lines, comment out stdio config above:
+			// "type": "sse",
+			// "url": "http://localhost:8000/sse"
 		}
 	}
 }
