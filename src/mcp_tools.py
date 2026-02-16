@@ -4,13 +4,16 @@ A FastMCP server that provides tools for interacting with the Evo platform,
 including workspace management, object ops, and data transfer.
 
 Configuration:
-    Set MCP_TOOL_FILTER environment variable to filter tools and prompts:
-    - "admin" : Workspace management tools 
-    - "data"    : Object query and management tools 
-    - "all"       : All tools (default)
+    MCP_TOOL_FILTER: Filter tools by category:
+        - "admin" : Workspace management tools 
+        - "data"  : Object query and management tools 
+        - "all"   : All tools (default)
+    
+    MCP_TOOL_MODE: Choose tool structure:
+        - "consolidated" : Use generic tools with skills (recommended)
+        - "legacy"       : Use specific tools (default for compatibility)
 
 The environment variable can be set in a .env file or passed directly to the MCP server as an input parameter.
-See the file 'vscode-mcp-config-example.json' for an example of passing environment variables to the MCP server.
 """
 
 import os
@@ -20,17 +23,19 @@ from fastmcp import FastMCP
 
 from evo_mcp.tools import (
     register_admin_tools,
-    # register_data_tools,
     register_general_tools,
     register_filesystem_tools,
-    register_object_builder_tools
+    register_object_builder_tools,
+    register_consolidated_tools
 )
 
+# Get tool mode
+TOOL_MODE = os.getenv("MCP_TOOL_MODE", "legacy").lower()
+
 # Get agent type from environment variable 
-# Thsi can either be set via MCP inputs, or the .env file used by the agent example
 TOOL_FILTER = os.getenv("MCP_TOOL_FILTER", 
     os.getenv(
-        "MCP_AGENT_TYPE",  # Kept for backwards compatability
+        "MCP_AGENT_TYPE",  # Kept for backwards compatibility
         "all",
     )).lower()
 VALID_TOOL_FILTERS = ["admin", "data", "all"]
@@ -39,8 +44,12 @@ if TOOL_FILTER not in VALID_TOOL_FILTERS:
     logging.warning(f"Invalid MCP_TOOL_FILTER '{TOOL_FILTER}', defaulting to 'all'")
     TOOL_FILTER = "all"
 
-# Initialize FastMCP server with agent type in name for clarity
-server_name = "Evo MCP Server" if TOOL_FILTER == "all" else f"Evo MCP Server ({TOOL_FILTER})"
+# Initialize FastMCP server with mode in name for clarity
+if TOOL_MODE == "consolidated":
+    server_name = "Evo MCP Server (Consolidated)"
+else:
+    server_name = "Evo MCP Server" if TOOL_FILTER == "all" else f"Evo MCP Server ({TOOL_FILTER})"
+
 mcp = FastMCP(server_name)
 
 def _get_objects_reference_content() -> str:
@@ -56,18 +65,22 @@ def _get_objects_reference_content() -> str:
     
 
 # =============================================================================
-# Tools - Conditionally registered based on TOOL_FILTER
+# Tools - Conditionally registered based on TOOL_MODE and TOOL_FILTER
 # =============================================================================
 
-register_general_tools(mcp)  # Always register general tools
+if TOOL_MODE == "consolidated":
+    # New consolidated tools - generic tools with skills-based guidance
+    register_consolidated_tools(mcp)
+else:
+    # Legacy tools - specific tools for backwards compatibility
+    register_general_tools(mcp)  # Always register general tools
 
-if TOOL_FILTER in ["all", "admin"]:  #  "admin_agent"
-    register_admin_tools(mcp)
-    
-if TOOL_FILTER in ["all", "data"]: #  "data_agent"
-    # register_data_tools(mcp)
-    register_filesystem_tools(mcp)
-    register_object_builder_tools(mcp)
+    if TOOL_FILTER in ["all", "admin"]:
+        register_admin_tools(mcp)
+        
+    if TOOL_FILTER in ["all", "data"]:
+        register_filesystem_tools(mcp)
+        register_object_builder_tools(mcp)
 
 # =============================================================================
 # Resources (not currently supported in ADK)
@@ -247,7 +260,7 @@ if TOOL_FILTER in ["all", "data"]:
                     "id_column": "HOLE_ID",
                     "from_column": "FROM",
                     "to_column": "TO"
-                }
+                }C
             ],
             dry_run=True  # Validate first
         )
