@@ -1,0 +1,55 @@
+services:
+  evo-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: evo-mcp-server-dev
+    
+    environment:
+      # Development configuration
+      EVO_CLIENT_ID: ${EVO_CLIENT_ID}
+      EVO_REDIRECT_URL: ${EVO_REDIRECT_URL:-http://localhost:3000/signin-oidc}
+      EVO_DISCOVERY_URL: ${EVO_DISCOVERY_URL:-https://discover.api.seequent.com}
+      ISSUER_URL: ${ISSUER_URL:-https://ims.bentley.com}
+      
+      MCP_TOOL_FILTER: ${MCP_TOOL_FILTER:-all}
+      EVO_MCP_STATE_DIR: /app/state
+      EVO_MCP_LOG_LEVEL: ${EVO_MCP_LOG_LEVEL:-DEBUG}  # More verbose in dev
+      
+      # MCP Transport Configuration
+      MCP_TRANSPORT: ${MCP_TRANSPORT:-stdio}
+      MCP_HOST: ${MCP_HOST:-0.0.0.0}
+      MCP_PORT: ${MCP_PORT:-8000}
+      MCP_PATH: ${MCP_PATH:-/mcp}
+      
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    
+    volumes:
+      # Mount source code for development (live edit)
+      - ./src:/app/src
+      # Persist state
+      - evo-mcp-state:/app/state
+      # Optional: local data directory
+      - ${EVO_LOCAL_DATA_DIR:-.}/data:/app/data:ro
+    
+    stdin_open: true
+    tty: true
+    
+    # Port exposure (for http/sse transport)
+    ports:
+      - "${MCP_PORT:-8000}:8000"
+    
+    # Don't restart automatically in dev (easier to debug crashes)
+    restart: "no"
+    
+    # More permissive resource limits for dev
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+
+volumes:
+  evo-mcp-state:
+    driver: local

@@ -1,16 +1,27 @@
 """
-
 A FastMCP server that provides tools for interacting with the Evo platform,
 including workspace management, object ops, and data transfer.
 
 Configuration:
-    Set MCP_TOOL_FILTER environment variable to filter tools and prompts:
-    - "admin" : Workspace management tools 
-    - "data"    : Object query and management tools 
-    - "all"       : All tools (default)
+    MCP_TOOL_FILTER: Filter tools by category (default: all)
+    - "admin" : Workspace management tools
+    - "data"  : Object query and management tools
+    - "all"   : All tools (default)
 
-The environment variable can be set in a .env file or passed directly to the MCP server as an input parameter.
-See the file 'vscode-mcp-config-example.json' for an example of passing environment variables to the MCP server.
+    MCP_TRANSPORT: Communication protocol (default: stdio)
+    - "stdio" : Direct process pipes (default for local IDEs)
+    - "sse"   : Server-Sent Events on HTTP port
+    - "http"  : HTTP streaming on port
+
+    MCP_HOST: Bind address for sse/http (default: 127.0.0.1)
+    MCP_PORT: Listen port for sse/http (default: 8000)
+    MCP_PATH: HTTP path for http transport (default: /mcp)
+
+    MCP_LOG_LEVEL: Logging verbosity (default: ERROR)
+    - DEBUG, INFO, WARNING, ERROR
+
+Environment variables can be set in .env file or passed to the MCP server.
+See DOCKER-SETUP.md for examples and Docker deployment.
 """
 
 import os
@@ -89,7 +100,6 @@ def get_objects_reference() -> str:
 # =============================================================================
 
 if TOOL_FILTER == "all":
-    print("Registering prompt for all tool types.")
     @mcp.prompt(name="all_prompt")
     def all_prompt() -> str:
         """All prompt that encompasses the functionality of all tool without a filter applied."""
@@ -273,5 +283,36 @@ if TOOL_FILTER in ["all", "data"]:
 # =============================================================================
 
 if __name__ == "__main__":
-    # run the server
-    mcp.run()
+    # Get log level from environment
+    log_level = os.getenv("EVO_MCP_LOG_LEVEL", "ERROR")
+    
+    # Configure logging to stderr only (MCP protocol requirement)
+    # This ensures stdout is reserved for MCP protocol messages
+    logging.basicConfig(
+        level=getattr(logging, log_level.upper(), logging.ERROR),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        force=True,
+    )
+    
+    # Get transport configuration from environment
+    transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+    
+    # Validate transport
+    valid_transports = ["stdio", "sse", "http"]
+    if transport not in valid_transports:
+        logging.warning(f"Invalid MCP_TRANSPORT '{transport}', defaulting to 'stdio'")
+        transport = "stdio"
+    
+    # Configure transport-specific parameters
+    run_kwargs = {"show_banner": False}
+    
+    if transport != "stdio":
+        run_kwargs["transport"] = transport
+        run_kwargs["host"] = os.getenv("MCP_HOST", "127.0.0.1")
+        run_kwargs["port"] = int(os.getenv("MCP_PORT", "8000"))
+        
+        if transport == "http":
+            run_kwargs["path"] = os.getenv("MCP_PATH", "/mcp")
+    
+    # Run the MCP server
+    mcp.run(**run_kwargs)

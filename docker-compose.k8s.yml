@@ -1,0 +1,39 @@
+services:
+  evo-mcp:
+    image: ghcr.io/seequentevo/evo-mcp:latest
+    
+    environment:
+      EVO_CLIENT_ID: ${EVO_CLIENT_ID}
+      EVO_CLIENT_SECRET: ${EVO_CLIENT_SECRET}  # Use client credentials in K8s
+      EVO_DISCOVERY_URL: ${EVO_DISCOVERY_URL:-https://discover.api.seequent.com}
+      ISSUER_URL: ${ISSUER_URL:-https://ims.bentley.com}
+      
+      MCP_TOOL_FILTER: ${MCP_TOOL_FILTER:-all}
+      EVO_MCP_STATE_DIR: /app/state
+      EVO_MCP_LOG_LEVEL: ${EVO_MCP_LOG_LEVEL:-INFO}
+      EVO_AUTH_MODE: client_credentials  # Always use client_credentials in K8s
+      
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    
+    volumes:
+      - evo-mcp-state:/app/state
+    
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    
+    # Kubernetes-style health checks
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "1.0"
+          memory: 1G
+
+volumes:
+  evo-mcp-state:
+    driver: local

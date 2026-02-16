@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+  evo-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: evo-mcp-server
+    
+    # Environment variables - configure your Evo credentials here
+    environment:
+      # Evo Platform Configuration
+      EVO_CLIENT_ID: ${EVO_CLIENT_ID}
+      EVO_REDIRECT_URL: ${EVO_REDIRECT_URL:-http://localhost:3000/signin-oidc}
+      EVO_DISCOVERY_URL: ${EVO_DISCOVERY_URL:-https://discover.api.seequent.com}
+      ISSUER_URL: ${ISSUER_URL:-https://ims.bentley.com}
+      
+      # MCP Server Configuration
+      MCP_TOOL_FILTER: ${MCP_TOOL_FILTER:-all}
+      EVO_MCP_STATE_DIR: /app/state
+      EVO_MCP_LOG_LEVEL: ${EVO_MCP_LOG_LEVEL:-ERROR}
+      
+      # MCP Transport Configuration
+      # Default: stdio (no port needed)
+      # Options: stdio, sse, http
+      MCP_TRANSPORT: ${MCP_TRANSPORT:-stdio}
+      MCP_HOST: ${MCP_HOST:-0.0.0.0}  # Bind to all interfaces when in container
+      MCP_PORT: ${MCP_PORT:-8000}
+      MCP_PATH: ${MCP_PATH:-/mcp}  # For http transport
+      
+      # Auth configuration (optional - for client credentials)
+      EVO_AUTH_MODE: ${EVO_AUTH_MODE:-authorization_code}
+      EVO_CLIENT_SECRET: ${EVO_CLIENT_SECRET}
+      
+      # Python logging
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    
+    # Mount state directory for persistence
+    volumes:
+      - evo-mcp-state:/app/state
+      - ${EVO_LOCAL_DATA_DIR:-.}/data:/app/data:ro  # Optional: mount local data files
+    
+    # Expose stdio for MCP protocol
+    # Or use HTTP/SSE transport via ports (set MCP_TRANSPORT env var)
+    stdin_open: true
+    tty: true
+    
+    # Port exposure (only needed for http/sse transport)
+    # Comment out if using stdio transport (default)
+    ports:
+      - "${MCP_PORT:-8000}:8000"
+    
+    # Keep container running
+    restart: unless-stopped
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "1.0"
+          memory: 1G
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  evo-mcp-state:
+    driver: local

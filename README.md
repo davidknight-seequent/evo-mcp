@@ -170,6 +170,28 @@ Set `MCP_TOOL_FILTER` environment variable in `.env` to filter available tools:
 - `data` - Object import, download and query operations  
 - `all` - All tools (default)
 
+### Docker Installation (Alternative)
+
+If you prefer using Docker:
+
+```bash
+# 1. Copy the environment template
+cp .env.example .env
+
+# 2. Edit .env with your credentials
+nano .env  # Add your EVO_CLIENT_ID and other settings
+
+# 3. Run the quickstart script to build and start
+./scripts/docker-quickstart.sh
+
+# View logs
+docker-compose logs -f evo-mcp
+```
+
+For detailed Docker instructions, see:
+- [DOCKER-SETUP.md](DOCKER-SETUP.md) - Quick start guide
+- [DOCKER.md](DOCKER.md) - Comprehensive reference
+
 ## Connect to Evo MCP
 
 Apps like VS Code and Cursor make it easy to connect to MCP servers, whether they are running locally or are available over a network or the internet. VS Code is free to download and use but Cursor requires a paid subscription.
