@@ -1,23 +1,26 @@
 ---
 name: workspace-management
-description: Discover, manage, and organize Evo workspaces. Use when user asks to list, find, create, snapshot, duplicate workspaces, or get workspace details.
+description: Lists, discovers, creates, and manages Evo workspaces. Use when user asks to list, find, search, create, get details, snapshot, duplicate workspaces, or select instances.
 ---
 
 # Workspace Management
 
 ## Purpose
 
-This skill helps users discover, create, and manage workspaces in the Seequent Evo platform using the consolidated generic tools.
+This skill provides comprehensive workspace management for the Seequent Evo platform, including discovering and listing workspaces, viewing details, creating new workspaces, creating snapshots for backup and recovery, and duplicating workspaces for testing or archival purposes.
 
 ## When to Use
 
 Use this skill when users ask to:
-- List or find workspaces
-- Get workspace details
+- List all workspaces or filter by name
+- Find or search for specific workspaces
+- Show available workspaces in their Evo instance
+- Discover what workspaces they have access to
+- Get detailed workspace information
 - Create new workspaces
-- Create workspace snapshots
-- Duplicate workspaces
-- Select Evo instances
+- Create workspace snapshots for backup
+- Duplicate workspaces for testing or archival
+- Select or switch Evo instances
 
 ## Available Generic Tools
 
@@ -169,15 +172,19 @@ test_workspace = await evo_manage(
 # Now work in test workspace
 workspace_id = test_workspace["new_workspace_id"]
 ```
+Start Broad, Then Filter**: When users are unsure of workspace names, list all workspaces first without filters, then apply name filtering based on results
 
-## Best Practices
+2. **Check User Roles**: Pay attention to `user_role` in workspace details - different permissions in different workspaces
 
-1. **Use Filters Effectively**: Start with broad queries, then narrow down with `name_filter`
+3. **Snapshot Before Major Changes**: Always create snapshots before bulk operations or significant changes to preserve current state
 
-2. **Check User Roles**: Pay attention to `user_role` in workspace details - affects what operations you can perform
+4. **Handle Empty Results**: If filtering returns no results, suggest removing filters or checking workspace name spelling
 
-3. **Snapshot Before Major Changes**: Always create snapshots before bulk operations or significant changes
+5. **Meaningful Names**: Use descriptive names for duplicated workspaces with dates or purpose
 
+6. **Instance Selection**: Select the correct Evo instance before performing any workspace operations
+
+7. **Use Appropriate Limits**: Default limit is usually sufficient; increase only if user explicitly needs more result
 4. **Meaningful Names**: Use descriptive names for duplicated workspaces with dates or purpose
 
 5. **Instance Selection**: Select the correct Evo instance before performing any workspace operations
