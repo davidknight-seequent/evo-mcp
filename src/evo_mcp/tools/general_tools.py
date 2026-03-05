@@ -6,20 +6,14 @@
 MCP tools for general operations (health checks, object CRUD, etc).
 """
 
-import logging
 from uuid import UUID
 
 from fastmcp import Context
+from fastmcp.utilities.logging import get_logger
 
 from evo_mcp.context import evo_context, ensure_initialized
 
-# Set up logging to file for debugging
-logging.basicConfig(
-    filename='mcp_tools_debug.log',
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def register_general_tools(mcp):
@@ -126,7 +120,8 @@ def register_general_tools(mcp):
         workspace_id: str,
         schema_id: str = "",
         deleted: bool = False,
-        limit: int = 100
+        limit: int = 100,
+        ctx: Context | None = None,
     ) -> list[dict]:
         """List objects in a workspace with optional filtering.
         
@@ -136,29 +131,43 @@ def register_general_tools(mcp):
             deleted: Include deleted objects
             limit: Maximum number of results
         """
-        logger.info(f"evo_list_objects called with workspace_id={workspace_id}, schema_id={schema_id}")
+        if ctx:
+            await ctx.info(
+                "Listing objects",
+                extra={
+                    "workspace_id": workspace_id,
+                    "schema_id": schema_id or None,
+                    "deleted": deleted,
+                    "limit": limit,
+                },
+            )
         
         try:
-            logger.debug("Calling ensure_initialized()")
+            if ctx:
+                await ctx.debug("Initializing Evo context")
             await ensure_initialized()
-            logger.debug("ensure_initialized() completed successfully")
+            if ctx:
+                await ctx.debug("Evo context initialized")
             
-            logger.debug(f"Getting object client for workspace {workspace_id}")
+            if ctx:
+                await ctx.debug("Getting object client", extra={"workspace_id": workspace_id})
             object_client = await evo_context.get_object_client(UUID(workspace_id))
-            logger.debug(f"Got object_client: {object_client}")
             
             service_health = await object_client.get_service_health()
             service_health.raise_for_status()
-            logger.debug("Object client health check passed")
+            if ctx:
+                await ctx.debug("Object client health check passed")
             
-            logger.debug("Calling list_objects()")
+            if ctx:
+                await ctx.debug("Fetching objects from service")
             objects = await object_client.list_objects(
                 schema_id=None, # [schema_id] if schema_id else None,
                 deleted=deleted,
                 limit=limit
             )
 
-            logger.debug(f"list_objects() returned {len(objects.items())} objects")
+            if ctx:
+                await ctx.debug("Received objects from service", extra={"count": len(objects.items())})
             
             result = [
                 {
@@ -172,11 +181,21 @@ def register_general_tools(mcp):
                 }
                 for obj in objects.items()
             ]
-            logger.info(f"evo_list_objects completed successfully with {len(result)} objects")
+            if ctx:
+                await ctx.info("Object listing completed", extra={"returned_count": len(result)})
             return result
             
         except Exception as e:
-            logger.error(f"Error in evo_list_objects: {type(e).__name__}: {str(e)}", exc_info=True)
+            if ctx:
+                await ctx.error(
+                    "Failed to list objects",
+                    extra={
+                        "workspace_id": workspace_id,
+                        "error_type": type(e).__name__,
+                        "error": str(e),
+                    },
+                )
+            logger.exception("Error in evo_list_objects")
             raise
 
     @mcp.tool()
@@ -231,6 +250,7 @@ def register_general_tools(mcp):
     async def select_instance(
         instance_name: str | None = None,
         instance_id: UUID | None = None,
+        ctx: Context | None = None,
     ) -> dict | None:
         """Select an instance to connect to.
 
@@ -245,10 +265,24 @@ def register_general_tools(mcp):
         """
         await ensure_initialized()
 
+        if ctx:
+            await ctx.info(
+                "Selecting Evo instance",
+                extra={
+                    "instance_name": instance_name,
+                    "instance_id": str(instance_id) if instance_id else None,
+                },
+            )
+
         instances = await evo_context.discovery_client.list_organizations()
         for instance in instances:
             if instance.id == instance_id or instance.display_name == instance_name:
                 await evo_context.switch_instance(instance.id, instance.hubs[0].url)
+                if ctx:
+                    await ctx.info(
+                        "Selected Evo instance",
+                        extra={"instance_id": str(instance.id), "instance_name": instance.display_name},
+                    )
                 return instance
 
         raise ValueError(

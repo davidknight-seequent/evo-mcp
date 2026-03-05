@@ -7,19 +7,13 @@ MCP tools for object management operations.
 """
 
 import json
-import logging
 from uuid import UUID
+from fastmcp.utilities.logging import get_logger
 
 from evo_mcp.context import evo_context, ensure_initialized
 from evo_mcp.utils.evo_data_utils import extract_data_references
 
-# Set up logging to file for debugging
-logging.basicConfig(
-    filename='mcp_tools_debug.log',
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def register_data_tools(mcp):
