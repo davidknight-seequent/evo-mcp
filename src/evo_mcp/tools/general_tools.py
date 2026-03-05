@@ -68,18 +68,52 @@ def register_general_tools(mcp):
             deleted: Include deleted workspaces
             limit: Maximum number of results
         """
+        if limit <= 0:
+            raise ValueError("limit must be greater than 0")
+
         if ctx:
             await ctx.info(
                 "Listing workspaces",
-                extra={"name": name or None, "deleted": deleted, "limit": limit},
+                extra={"filter_name": name or None, "deleted": deleted, "limit": limit},
             )
         await ensure_initialized()
-        
-        workspaces = await evo_context.workspace_client.list_workspaces(
-            name=name if name else None,
-            deleted=deleted,
-            limit=limit
-        )
+
+        requested_limit = limit
+        max_page_size = 100
+        remaining = requested_limit
+        offset = 0
+        workspace_items = []
+        pages_fetched = 0
+
+        # Workspace service enforces a maximum page size of 100.
+        while remaining > 0:
+            page_limit = min(max_page_size, remaining)
+            workspaces_page = await evo_context.workspace_client.list_workspaces(
+                name=name if name else None,
+                deleted=deleted,
+                limit=page_limit,
+                offset=offset,
+            )
+
+            page_items = workspaces_page.items()
+            if not page_items:
+                break
+
+            workspace_items.extend(page_items)
+            pages_fetched += 1
+
+            fetched_count = len(page_items)
+            remaining -= fetched_count
+            offset += fetched_count
+
+            if offset >= workspaces_page.total:
+                break
+
+        if ctx and pages_fetched > 1:
+            await ctx.debug(
+                "Workspace listing required multiple pages",
+                extra={"pages_fetched": pages_fetched, "requested_limit": requested_limit},
+            )
         
         result = [
             {
@@ -90,7 +124,7 @@ def register_general_tools(mcp):
                 "created_at": ws.created_at.isoformat() if ws.created_at else None,
                 "updated_at": ws.updated_at.isoformat() if ws.updated_at else None,
             }
-            for ws in workspaces.items()
+            for ws in workspace_items
         ]
 
         if ctx:

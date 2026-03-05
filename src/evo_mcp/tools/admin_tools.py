@@ -38,7 +38,7 @@ def register_admin_tools(mcp):
         if ctx:
             await ctx.info(
                 "Creating workspace",
-                extra={"name": name, "has_description": bool(description), "label_count": len(labels or [])},
+                extra={"workspace_name": name, "has_description": bool(description), "label_count": len(labels or [])},
             )
         await ensure_initialized()
         
@@ -56,7 +56,7 @@ def register_admin_tools(mcp):
         }
 
         if ctx:
-            await ctx.info("Workspace created", extra={"workspace_id": result["id"], "name": result["name"]})
+            await ctx.info("Workspace created", extra={"workspace_id": result["id"], "workspace_name": result["name"]})
 
         return result
 
