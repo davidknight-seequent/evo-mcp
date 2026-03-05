@@ -20,12 +20,17 @@ def register_general_tools(mcp):
     """Register all general tools with the FastMCP server."""
     
     @mcp.tool()
-    async def workspace_health_check(workspace_id: str = "") -> dict:
+    async def workspace_health_check(
+        workspace_id: str = "",
+        ctx: Context | None = None,
+    ) -> dict:
         """Check health status of Evo services.
         
         Args:
             workspace_id: Workspace UUID to check object service (optional)
         """
+        if ctx:
+            await ctx.info("Running workspace health check", extra={"workspace_id": workspace_id or None})
         results = {}
         
         if evo_context.workspace_client:
@@ -43,6 +48,9 @@ def register_general_tools(mcp):
                 "service": object_health.service,
                 "status": object_health.status,
             }
+
+        if ctx:
+            await ctx.info("Workspace health check complete", extra={"services": list(results.keys())})
         
         return results
 
@@ -50,7 +58,8 @@ def register_general_tools(mcp):
     async def list_workspaces(
         name: str = "",
         deleted: bool = False,
-        limit: int = 50
+        limit: int = 50,
+        ctx: Context | None = None,
     ) -> list[dict]:
         """List workspaces with optional filtering by name or deleted status.
         
@@ -59,6 +68,11 @@ def register_general_tools(mcp):
             deleted: Include deleted workspaces
             limit: Maximum number of results
         """
+        if ctx:
+            await ctx.info(
+                "Listing workspaces",
+                extra={"name": name or None, "deleted": deleted, "limit": limit},
+            )
         await ensure_initialized()
         
         workspaces = await evo_context.workspace_client.list_workspaces(
@@ -67,7 +81,7 @@ def register_general_tools(mcp):
             limit=limit
         )
         
-        return [
+        result = [
             {
                 "id": str(ws.id),
                 "name": ws.display_name,
@@ -79,10 +93,16 @@ def register_general_tools(mcp):
             for ws in workspaces.items()
         ]
 
+        if ctx:
+            await ctx.info("Workspace listing complete", extra={"returned_count": len(result)})
+
+        return result
+
     @mcp.tool()
     async def get_workspace(
         workspace_id: str = "",
-        workspace_name: str = ""
+        workspace_name: str = "",
+        ctx: Context | None = None,
     ) -> dict:
         """Get workspace details by ID or name.
         
@@ -90,6 +110,11 @@ def register_general_tools(mcp):
             workspace_id: Workspace UUID (provide either this or workspace_name)
             workspace_name: Workspace name (provide either this or workspace_id)
         """
+        if ctx:
+            await ctx.info(
+                "Getting workspace details",
+                extra={"workspace_id": workspace_id or None, "workspace_name": workspace_name or None},
+            )
         await ensure_initialized()
         
         if workspace_id:
@@ -103,7 +128,7 @@ def register_general_tools(mcp):
         else:
             raise ValueError("Either workspace_id or workspace_name must be provided")
         
-        return {
+        result = {
             "id": str(workspace.id),
             "name": workspace.display_name,
             "description": workspace.description,
@@ -114,6 +139,11 @@ def register_general_tools(mcp):
             "default_coordinate_system": workspace.default_coordinate_system,
             "labels": workspace.labels,
         }
+
+        if ctx:
+            await ctx.info("Workspace details fetched", extra={"workspace_id": result["id"]})
+
+        return result
     
     @mcp.tool()
     async def list_objects(
@@ -203,7 +233,8 @@ def register_general_tools(mcp):
         workspace_id: str,
         object_id: str = "",
         object_path: str = "",
-        version: str = ""
+        version: str = "",
+        ctx: Context | None = None,
     ) -> dict:
         """Get object metadata by ID or path.
         
@@ -213,6 +244,16 @@ def register_general_tools(mcp):
             object_path: Object path (provide either this or object_id)
             version: Specific version ID (optional)
         """
+        if ctx:
+            await ctx.info(
+                "Getting object metadata",
+                extra={
+                    "workspace_id": workspace_id,
+                    "object_id": object_id or None,
+                    "object_path": object_path or None,
+                    "version": version or None,
+                },
+            )
         await ensure_initialized()
         object_client = await evo_context.get_object_client(UUID(workspace_id))
         
@@ -223,7 +264,7 @@ def register_general_tools(mcp):
         else:
             raise ValueError("Either object_id or object_path must be provided")
         
-        return {
+        result = {
             "id": str(obj.metadata.id),
             "name": obj.metadata.name,
             "path": obj.metadata.path,
@@ -232,6 +273,11 @@ def register_general_tools(mcp):
             "created_at": obj.metadata.created_at.isoformat() if obj.metadata.created_at else None,
             #"updated_at": obj.metadata.updated_at.isoformat() if obj.metadata.updated_at else None,
         }
+
+        if ctx:
+            await ctx.info("Object metadata fetched", extra={"object_id": result["id"]})
+
+        return result
 
 
     @mcp.tool()
