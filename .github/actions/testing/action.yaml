@@ -1,5 +1,5 @@
 name: "Testing"
-description: "Run tests for evo-mcp with uv"
+description: "Run tests for evo-mcp"
 
 inputs:
   PYTHON_VERSION:
