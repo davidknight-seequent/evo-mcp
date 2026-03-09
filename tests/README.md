@@ -44,6 +44,13 @@ This directory contains automated tests for the Evo MCP server.
 	- `build_and_create_downhole_intervals`: success path and missing required midpoint column.
 	- The tests intentionally stop at `dry_run=True`, so they validate CSV parsing and input checks without creating Evo objects or uploading data.
 
+- `unit/test_setup_mcp.py`: Covers the interactive setup script helpers in `scripts/setup_mcp.py`.
+	- Verifies `.env` parsing and writing behavior.
+	- Verifies HTTP startup env validation and project-relative command resolution.
+	- Verifies generated MCP client config entries for VS Code and Cursor.
+	- Verifies WSL-specific VS Code config directory resolution prefers the VS Code server path.
+	- Verifies `setup_mcp_config()` accepts an existing empty `mcp.json` and writes a valid Evo MCP config.
+
 - `unit/test_server_bootstrap.py`: Covers MCP server bootstrap and conditional registration in `mcp_tools.py`.
 	- Verifies invalid `MCP_TRANSPORT` falls back to `stdio`.
 	- Verifies invalid `MCP_TOOL_FILTER` falls back to `all`.
