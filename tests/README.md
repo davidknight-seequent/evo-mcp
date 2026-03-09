@@ -64,6 +64,14 @@ This directory contains automated tests for the Evo MCP server.
 	- Calls `ensure_initialized()` and then checks that `workspace_client.list_workspaces()` returns objects with basic expected fields.
 	- This is intentionally a minimal live test that validates authentication and a simple workspace listing flow without mutating server state.
 
+- `integration/test_live_general_tools.py`: Additional read-only live coverage for the general MCP tools.
+	- Verifies live workspace-service health checks.
+	- Verifies instance discovery via `list_my_instances`.
+	- Verifies workspace lookup by ID using a real accessible workspace.
+	- Verifies object listing for a real workspace.
+	- Verifies object metadata lookup by path when the selected workspace contains at least one object.
+	- These tests remain opt-in and skip gracefully when the account has no accessible workspaces or no objects in the selected workspace.
+
 ## Adding tests
 
 - Add fast, isolated coverage under `unit/` when the code can be exercised with mocks, stubs, temporary files, or pure data fixtures.
