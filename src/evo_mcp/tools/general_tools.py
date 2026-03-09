@@ -322,7 +322,7 @@ def register_general_tools(mcp):
         await ensure_initialized()
 
         if evo_context.org_id:
-            await ctx.info(f"Selected instance ID {evo_context.org_id}")
+            await ctx.info("Current Evo instance selected", extra={"instance_id": str(evo_context.org_id)})
         instances = await evo_context.discovery_client.list_organizations()
         return instances
 
