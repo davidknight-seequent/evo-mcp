@@ -236,24 +236,27 @@ Make a copy of the file `.env.example` and rename it to `.env`. Fill in your app
 
 ##### Evo app credentials
 
-You first need to create an **app** in the [iTwin Developer Portal](https://developer.bentley.com/register/?product=seequent-evo). This app will allow you to sign in with your Bentley account in access Seequent Evo. Visit the [Evo Developer Portal](https://developer.seequent.com/docs/guides/getting-started/apps-and-tokens) to learn more.
+You first need to create a **native app** in the [iTwin Developer Portal](https://developer.bentley.com/register/?product=seequent-evo). This app will allow you to sign in with your Bentley account in access Seequent Evo. Visit the [Evo Developer Portal](https://developer.seequent.com/docs/guides/getting-started/apps-and-tokens) to learn more.
 
-###### Authorization methods and application types
-Two application types are supported by the Evo MCP server: native and service apps. The authentication method can be specified in the setup script when prompted, or by setting the `AUTH_METHOD` environment variable in `.env` to either `native_app` or `client_credentials`.
-For either app type, fill in the required credentials in your `.env` file as described below.
-
-1. Service apps will require no user interaction to authenticate to Evo, however, the app needs to be granted access to your Evo instance and workspaces. Recommended for automation, CI/CD, and background services where user interaction is not possible or desired.
-
+Fill in your app credentials in the `.env` file:
 ```bash
-EVO_CLIENT_ID=your-client-id #e.g. service-xxxxxx
-EVO_CLIENT_SECRET=your-client-secret
-```
-
-2. Native apps will require the user to sign in interactively through a browser, allowing access to any Evo instance and workspaces to which the logged on user has access.  Recommended for local development with a user account.
-```bash
-EVO_CLIENT_ID=your-client-id #e.g. native-xxxxxx
+EVO_CLIENT_ID=your-client-id
 EVO_REDIRECT_URL=your-redirect-url
 ```
+
+When you first use the server it will open your browser so you can sign in with your Bentley account. This gives the server access to any Evo instance and workspace your account has access to.
+
+##### Alternative: Service authentication (for automation/CI)
+
+If you need to run the server without interactive sign-in (e.g. automation, CI/CD, or background services), you can use a **service app** instead. Create a service app in the iTwin Developer Portal and set the following in your `.env` file:
+
+```bash
+AUTH_METHOD=client_credentials
+EVO_CLIENT_ID=your-service-client-id
+EVO_CLIENT_SECRET=your-service-client-secret
+```
+
+Note: The service app must be explicitly granted access to your Evo instance and workspaces.
 
 ##### MCP transport mode (optional)
 
