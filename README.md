@@ -13,6 +13,7 @@
 - [What is MCP?](#what-is-mcp)
 - [What is the Evo MCP server?](#what-is-the-evo-mcp-server)
   - [How teams use Evo MCP](#how-teams-use-evo-mcp)
+  - [Plan a new Evo integration](#plan-a-new-evo-integration)
   - [Server architecture](#server-architecture)
 - [Getting started](#getting-started)
   - [Prerequisites](#prerequisites)
@@ -51,6 +52,105 @@ The server comes packaged with many tools written by Seequent, but it is fully e
 
 * Workspace management: Create workspaces, summarize objects, snapshot and duplicate workspaces, copy objects between workspaces.
 * Geoscience object creation: structured geoscience objects (pointsets, line segments, downhole collections, and downhole intervals) in Evo directly from raw CSV files, automating data validation and schema mapping.
+* Integration planning: ask an agent what data you need to consume or create, then get a report describing which Evo schemas, schema versions, and connected apps to use for implementation and testing.
+
+### Plan a new Evo integration
+
+The `plan_evo_integration` tool is designed to mirror the Evo Developer Atlas integration builder workflow inside MCP. It works best when the agent first asks the user three questions:
+
+1. Will the integration consume existing Evo objects or create new Evo objects?
+2. What kind of geoscience data will the integration work with?
+3. What development environment will the integration be built in?
+
+If an integration needs to support both directions, run the planner twice: once with `goal="consume"` and once with `goal="create"`.
+
+The tool then combines two inputs:
+
+* The local app compatibility catalog in `data/apps`
+* A schema catalog resolved in this order: repository backup, installed `evo_schemas` package, then live `SeequentEvo/evo-schemas` as a last resort
+
+This tool is for planning only. It recommends what a user should build against and test against, but it does not inspect local workspace files and it does not try to build the integration on the user's behalf.
+
+The result is a report that includes:
+
+* The Evo schemas relevant to the requested data types
+* The recommended schema version to build against for each schema
+* Source apps to use when testing consume workflows
+* Validation apps to use when testing create workflows
+* The schema catalog source used for the recommendation
+* Environment-specific implementation links and a markdown summary
+
+### Local schema backup
+
+To avoid GitHub API rate limits, the planner prefers a local schema snapshot at `data/evo-schemas/schema/objects`.
+
+If that repository backup is missing, the tool falls back to the installed `evo_schemas` package. Only if both local sources are unavailable will it query GitHub.
+
+If you want to refresh the repository-managed backup from the upstream `evo-schemas` repository, place the contents of `schema/objects` from `SeequentEvo/evo-schemas` into:
+
+```text
+data/evo-schemas/schema/objects/
+```
+
+The expected layout is:
+
+```text
+data/evo-schemas/schema/objects/
+  downhole-collection/
+    1.0.1/
+    1.1.0/
+  geological-model-meshes/
+    2.2.0/
+  ...
+```
+
+Example tool call:
+
+```python
+plan_evo_integration(
+  goal="consume",
+  development_environment="Python",
+  data_types=["Drillholes & boreholes", "Geological models"]
+)
+```
+
+Example agent flow:
+
+```text
+User: I want to build an integration that reads drillhole data from Python.
+
+Agent:
+1. Will the integration consume Evo objects or create Evo objects?
+2. Which geoscience data types should it support?
+3. What development environment will you use?
+
+Tool call:
+plan_evo_integration(
+  goal="consume",
+  development_environment="Python",
+  data_types=["Drillholes & boreholes"]
+)
+```
+
+Supported data type labels:
+
+* `2D grids & rasters`
+* `Block models & grids`
+* `Drillholes & boreholes`
+* `Geological models`
+* `Geophysical surveys`
+* `Geostatistics & variograms`
+* `Lines & polylines`
+* `Points & point clouds`
+* `Structural measurements`
+* `Surfaces & meshes`
+
+Supported development environments:
+
+* `Python`
+* `JavaScript / TypeScript`
+* `.NET (C#)`
+* `Other / REST API`
 
 > [!WARNING]
 > The Evo MCP server is in early development and functionality is limited. Your feedback on future development is welcome!

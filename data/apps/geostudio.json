@@ -1,0 +1,16 @@
+{
+  "id": "geostudio",
+  "name": "GeoStudio",
+  "category": "Engineering",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "connected",
+  "lastUpdated": "2025-09-23",
+  "summary": "Supports geometry, sections, and geological meshes.",
+  "productUrl": "https://www.seequent.com/products-solutions/geostudio/",
+  "support": [
+    { "schema": "design-geometry", "directions": ["import", "export"], "versionSpecs": ["1.X.X"] },
+    { "schema": "geological-model-meshes", "directions": ["import", "export"], "versionSpecs": ["2.1.0"] },
+    { "schema": "geological-sections", "directions": ["import", "export"], "versionSpecs": ["1.1.0"] }
+  ]
+}

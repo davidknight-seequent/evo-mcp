@@ -1,0 +1,12 @@
+{
+  "id": "itwin",
+  "name": "iTwin",
+  "category": "Platform",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "not-connected",
+  "summary": "Explicitly marked as not Evo connected in the source document.",
+  "productUrl": "https://www.bentley.com/software/itwin/",
+  "note": "Not Evo connected.",
+  "support": []
+}

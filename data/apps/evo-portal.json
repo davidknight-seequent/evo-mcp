@@ -1,0 +1,21 @@
+{
+  "id": "evo-portal",
+  "name": "Evo portal",
+  "category": "Platform",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "connected",
+  "lastUpdated": "2026-03-27",
+  "summary": "Schema compatibility for the Evo portal web application.",
+  "productUrl": "https://www.seequent.com/products-solutions/seequent-evo/",
+  "support": [
+    { "schema": "pointset", "directions": ["import"], "versionSpecs": ["1.0.1", "1.1.0", "1.2.0"], "appVersionSpecs": [{ "version": "2026.3.1773", "released": true }] },
+    { "schema": "pointset", "directions": ["import"], "versionSpecs": ["1.3.0"], "appVersionSpecs": [{ "version": "2026.3.1882", "released": false }] },
+    { "schema": "downhole-collection", "directions": ["import"], "versionSpecs": ["1.0.1", "1.1.0", "1.2.0"], "appVersionSpecs": [{ "version": "2026.3.1773", "released": true }] },
+    { "schema": "downhole-collection", "directions": ["import"], "versionSpecs": ["1.3.0", "1.3.1"], "appVersionSpecs": [{ "version": "2026.3.1882", "released": false }] },
+    { "schema": "triangle-mesh", "directions": ["import"], "versionSpecs": ["1.0.1", "1.1.0", "2.0.0", "2.1.0", "2.2.0"], "appVersionSpecs": [{ "version": "2026.3.1773", "released": true }] },
+    { "schema": "geological-model-meshes", "directions": ["import"], "versionSpecs": ["1.0.1", "1.1.0", "2.0.0", "2.1.0", "2.2.0"], "appVersionSpecs": [{ "version": "2026.3.1773", "released": true }] },
+    { "schema": "regular-2d-grid", "directions": ["import"], "versionSpecs": ["1.0.1", "1.1.0", "1.2.0", "1.3.0"], "appVersionSpecs": [{ "version": "2026.3.1773", "released": true }] },
+    { "schema": "regular-3d-grid", "directions": ["import"], "versionSpecs": ["1.0.1", "1.1.0", "1.2.0", "1.3.0"], "appVersionSpecs": [{ "version": "2026.3.1773", "released": true }] }
+  ]
+}

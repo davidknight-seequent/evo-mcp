@@ -1,0 +1,13 @@
+{
+  "id": "res2dinv-res3dinv",
+  "name": "Res2DInv / Res3DInv",
+  "category": "Geophysics",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "not-connected",
+  "lastUpdated": "2025-09-17",
+  "summary": "Explicitly marked as not Evo connected in the source document.",
+  "productUrl": "https://www.seequent.com/products-solutions/res2dinv-and-res3dinv/",
+  "note": "Not Evo connected.",
+  "support": []
+}

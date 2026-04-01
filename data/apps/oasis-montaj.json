@@ -1,0 +1,20 @@
+{
+  "id": "oasis-montaj",
+  "name": "Oasis montaj",
+  "category": "Geophysics",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "connected",
+  "lastUpdated": "2026-03-27",
+  "summary": "Supports regular 2D grid exchange in Oasis montaj 2025.2.1.",
+  "productUrl": "https://www.seequent.com/products-solutions/oasis-montaj/",
+  "sourceReference": "Oasis montaj Schema Version support",
+  "support": [
+    {
+      "schema": "regular-2d-grid",
+      "directions": ["import", "export"],
+      "versionSpecs": ["1.X.X"],
+      "appVersionSpecs": [{ "version": "2025.2.1", "released": true }]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "driver",
+  "name": "Driver",
+  "category": "Mining",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "connected",
+  "summary": "The source document confirms Driver is integrated, but it links to a separate compatibility page rather than embedding schema rows inline.",
+  "productUrl": "https://www.seequent.com/products-solutions/driver/",
+  "note": "Schema/version details still need to be brought across from the linked Driver compatibility source.",
+  "sourceReference": "Driver geoscience object supported schema versions",
+  "support": []
+}

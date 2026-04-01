@@ -1,0 +1,12 @@
+{
+  "id": "volsung",
+  "name": "Volsung",
+  "category": "Platform",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "not-connected",
+  "summary": "Explicitly marked as not Evo connected in the source document.",
+  "productUrl": "https://www.seequent.com/products-solutions/volsung/",
+  "note": "Not Evo connected.",
+  "support": []
+}

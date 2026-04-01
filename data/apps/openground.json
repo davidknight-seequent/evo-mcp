@@ -1,0 +1,18 @@
+{
+  "id": "openground",
+  "name": "OpenGround",
+  "category": "Engineering",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "connected",
+  "summary": "The source document confirms OpenGround support for downhole collections, but not a versioned matrix.",
+  "productUrl": "https://www.seequent.com/products-solutions/openground/",
+  "sourceReference": "Downhole Collections",
+  "support": [
+    {
+      "schema": "downhole-collection",
+      "directions": ["import", "export"],
+      "note": "Mentioned in source document without version detail."
+    }
+  ]
+}

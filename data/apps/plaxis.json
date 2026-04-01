@@ -1,0 +1,15 @@
+{
+  "id": "plaxis",
+  "name": "PLAXIS",
+  "category": "Engineering",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "connected",
+  "lastUpdated": "2025-09-19",
+  "summary": "Targeted support for geometry and section exchange.",
+  "productUrl": "https://www.seequent.com/products-solutions/plaxis/",
+  "support": [
+    { "schema": "design-geometry", "directions": ["import", "export"], "versionSpecs": ["1.X.X"] },
+    { "schema": "geological-sections", "directions": ["import", "export"], "versionSpecs": ["1.1.0"] }
+  ]
+}

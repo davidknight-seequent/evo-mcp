@@ -1,0 +1,15 @@
+{
+  "id": "mxdeposit",
+  "name": "MX Deposit",
+  "category": "Mining",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "connected",
+  "lastUpdated": "2025-11-06",
+  "summary": "Publishes drilling and point data into Evo.",
+  "productUrl": "https://www.seequent.com/products-solutions/mx-deposit/",
+  "support": [
+    { "schema": "downhole-collection", "directions": ["export"], "versionSpecs": ["1.0.1"] },
+    { "schema": "pointset", "directions": ["export"], "versionSpecs": ["1.3.0"] }
+  ]
+}

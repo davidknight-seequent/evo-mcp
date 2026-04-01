@@ -1,0 +1,33 @@
+{
+  "id": "workbench",
+  "name": "Workbench",
+  "category": "Geophysics",
+  "publisherName": "Seequent",
+  "publisherType": "first-party",
+  "integrationStatus": "connected",
+  "lastUpdated": "2025-09-17",
+  "summary": "Structured support for grid and 1D geophysical record exchange, but version granularity was not visible.",
+  "productUrl": "https://www.seequent.com/products-solutions/ags-workbench/",
+  "support": [
+    {
+      "schema": "geophysical-records-1d",
+      "directions": ["import", "export"],
+      "note": "Source document listed this schema for import and export without version detail."
+    },
+    {
+      "schema": "regular-2d-grid",
+      "directions": ["import", "export"],
+      "note": "Source document listed this schema for import and export without version detail."
+    },
+    {
+      "schema": "regular-3d-grid",
+      "directions": ["import"],
+      "note": "Source document listed this schema for import without version detail."
+    },
+    {
+      "schema": "tensor-3d-grid",
+      "directions": ["import", "export"],
+      "note": "Source document listed this schema for import and export without version detail."
+    }
+  ]
+}

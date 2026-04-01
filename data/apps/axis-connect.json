@@ -1,0 +1,13 @@
+{
+  "id": "axis-connect",
+  "name": "Axis Connect",
+  "category": "Planning",
+  "publisherName": "Orica",
+  "publisherType": "third-party",
+  "integrationStatus": "connected",
+  "summary": "Supports drilling campaign import.",
+  "productUrl": "https://axisminetech.com/axis-connect/",
+  "support": [
+    { "schema": "drilling-campaign", "directions": ["import"], "versionSpecs": ["1.0.0"] }
+  ]
+}

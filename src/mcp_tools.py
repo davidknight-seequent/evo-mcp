@@ -35,10 +35,12 @@ from evo_mcp.tools import (
     # register_data_tools,
     register_general_tools,
     register_filesystem_tools,
+    register_integration_advisor_tools,
     register_object_builder_tools,
     register_file_tools,
     register_instance_users_admin_tools
 )
+from evo_mcp.utils.integration_advisor import DATA_TYPE_GROUPS, ENVIRONMENT_GUIDANCE
 
 # Get transport mode from environment variable
 TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio").lower()
@@ -85,6 +87,47 @@ def _get_objects_reference_content() -> str:
         return "Objects reference information is currently unavailable."
 
 
+def _get_integration_planning_prompt_content() -> str:
+    """Build prompt guidance for the integration planning workflow."""
+    data_types = "\n".join(f"        - {label}" for label in DATA_TYPE_GROUPS)
+    environments = "\n".join(
+        f"        - {config['label']}" for config in ENVIRONMENT_GUIDANCE.values()
+    )
+    return f"""\
+        When helping a user plan a new Evo integration, ask exactly these questions first:
+        1. Will the integration consume existing Evo objects or create new Evo objects?
+        2. Which geoscience data types does the integration need to work with?
+        3. What development environment will the integration be built in?
+
+        If the user needs to plan both directions, run the planner twice:
+        - once with `goal="consume"`
+        - once with `goal="create"`
+
+        Supported data type labels:
+{data_types}
+
+        Supported development environments:
+{environments}
+
+        After you have those answers, call `plan_evo_integration` with the chosen goal,
+        data types, and development environment. Prefer `data_types` for broad user intent,
+        and add `schema_names` only when the user names exact Evo schemas.
+
+        Planning-only constraint:
+        - Do not inspect the user's workspace for local data files.
+        - Do not call CSV discovery or object-building tools unless the user explicitly asks for implementation help.
+        - Use this tool only to recommend schemas, versions, apps, and reference material.
+
+        The tool returns a report that includes:
+        - recommended Evo schema versions to build against
+        - source apps for consume workflow testing
+        - validation apps for create workflow testing
+        - the schema catalog source used for planning
+        - environment-specific implementation resources
+        - a markdown summary you can relay directly to the user
+        """
+
+
 # =============================================================================
 # Tools - Conditionally registered based on TOOL_FILTER
 # =============================================================================
@@ -100,6 +143,7 @@ if TOOL_FILTER in ["all", "admin"]:
 if TOOL_FILTER in ["all", "data"]: #  "data_agent"
     # register_data_tools(mcp)
     register_filesystem_tools(mcp)
+    register_integration_advisor_tools(mcp)
     register_object_builder_tools(mcp)
     register_file_tools(mcp)
     if TOOL_FILTER == "data":
@@ -154,6 +198,7 @@ if TOOL_FILTER == "all":
         - Listing users in the instance and their roles
         - Adding or removing users from the instance
         - Updating user roles in the instance
+        - Planning new Evo integrations against compatible apps and schema versions
 
         When a user asks about workspaces, use the available MCP tools to provide accurate information.
         Always be clear about what workspace you're working with.
@@ -169,6 +214,9 @@ if TOOL_FILTER == "all":
         - Confirm before deleting objects
         - Verify required properties when creating objects
         - Check object schema compatibility
+
+        Integration planning guidance:
+        {_get_integration_planning_prompt_content()}
 
 
         """
@@ -200,6 +248,15 @@ if TOOL_FILTER in ["all", "admin"]:
 
 
 if TOOL_FILTER in ["all", "data"]:
+    @mcp.prompt(name="integration_planning_prompt")
+    def integration_planning_prompt() -> str:
+        """Prompt for guiding the integration planning workflow."""
+        return f"""\
+        You are helping a user plan a new Evo integration.
+
+        {_get_integration_planning_prompt_content()}
+        """
+
     @mcp.prompt(name="data_prompt")
     def data_prompt() -> str:
         """Prompt for local file system data connector and object creation operations."""
@@ -207,6 +264,14 @@ if TOOL_FILTER in ["all", "data"]:
         You are a local data import specialist for the Evo platform created by Seequent.
 
         You can help users create geoscience objects from CSV files.
+        You can also help users plan a new Evo integration by recommending schemas,
+        schema versions, and compatible apps to test against.
+
+        Integration planning workflow:
+        """ + _get_integration_planning_prompt_content() + """
+
+        If the user is only planning an integration, stop at the planning report.
+        Do not inspect local files and do not switch into object-creation workflows.
 
         ## Supported Object Types
 
