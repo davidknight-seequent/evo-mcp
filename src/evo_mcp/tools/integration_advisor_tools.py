@@ -23,7 +23,7 @@ def register_integration_advisor_tools(mcp):
     async def plan_evo_integration(
         goal: str,
         development_environment: str,
-        data_types: list[str] = [],
+        data_type: str = "",
         schema_names: list[str] = [],
         include_unreleased_app_versions: bool = True,
         refresh_schema_catalog: bool = False,
@@ -37,11 +37,14 @@ def register_integration_advisor_tools(mcp):
         and compatible apps for testing. It should not inspect the user's workspace
         for data files or try to build the integration directly.
 
+        Each planning run accepts exactly one direction: consume or create.
+        There is no both mode.
+
         Supported goals:
         - consume
         - create
 
-        Supported data types:
+        Supported data type options:
         - 2D grids & rasters
         - Block models & grids
         - Drillholes & boreholes
@@ -60,9 +63,9 @@ def register_integration_advisor_tools(mcp):
         - Other / REST API
 
         Args:
-            goal: Whether the integration will consume or create Evo objects
+            goal: Whether this planning run is for consuming or creating Evo objects
             development_environment: The user's implementation environment
-            data_types: High-level geoscience data type labels to map to Evo schemas
+            data_type: One high-level geoscience data type label to map to Evo schemas
             schema_names: Exact Evo schema names, used in addition to or instead of data_types
             include_unreleased_app_versions: Include planned app builds in the recommendations
             refresh_schema_catalog: Force a fresh reload of the schema catalog source chain
@@ -78,7 +81,7 @@ def register_integration_advisor_tools(mcp):
             app_catalog=app_catalog,
             schema_catalog=schema_catalog,
             schema_catalog_source=schema_catalog_data["source"],
-            data_types=data_types,
+            data_type=data_type,
             schema_names=schema_names,
             include_unreleased_app_versions=include_unreleased_app_versions,
         )

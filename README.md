@@ -59,10 +59,12 @@ The server comes packaged with many tools written by Seequent, but it is fully e
 The `plan_evo_integration` tool is designed to mirror the Evo Developer Atlas integration builder workflow inside MCP. It works best when the agent first asks the user three questions:
 
 1. Will the integration consume existing Evo objects or create new Evo objects?
-2. What kind of geoscience data will the integration work with?
+2. What one geoscience data type will the integration work with?
 3. What development environment will the integration be built in?
 
-If an integration needs to support both directions, run the planner twice: once with `goal="consume"` and once with `goal="create"`.
+There is no `both` goal. If an integration needs plans for reading and writing, run the planner twice: once with `goal="consume"` and once with `goal="create"`.
+
+Ask the user to pick one data type option. After that selection is made, move directly to the development-environment question.
 
 The tool then combines two inputs:
 
@@ -110,7 +112,7 @@ Example tool call:
 plan_evo_integration(
   goal="consume",
   development_environment="Python",
-  data_types=["Drillholes & boreholes", "Geological models"]
+  data_type="Drillholes & boreholes"
 )
 ```
 
@@ -121,14 +123,14 @@ User: I want to build an integration that reads drillhole data from Python.
 
 Agent:
 1. Will the integration consume Evo objects or create Evo objects?
-2. Which geoscience data types should it support?
+2. Which geoscience data type should it support?
 3. What development environment will you use?
 
 Tool call:
 plan_evo_integration(
   goal="consume",
   development_environment="Python",
-  data_types=["Drillholes & boreholes"]
+  data_type="Drillholes & boreholes"
 )
 ```
 

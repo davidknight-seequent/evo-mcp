@@ -88,10 +88,11 @@ class BuildIntegrationPlanTests(unittest.TestCase):
             app_catalog=app_catalog,
             schema_catalog=schema_catalog,
             schema_catalog_source={"kind": "repo-backup", "description": "Repository-backed evo-schemas snapshot"},
-            data_types=["Drillholes & boreholes"],
+            data_type="Drillholes & boreholes",
             schema_names=[],
         )
 
+        self.assertEqual(plan["selected_data_type"], "Drillholes & boreholes")
         self.assertEqual(plan["schemas"][0]["recommended_build_version"], "1.2.0")
         self.assertEqual(
             plan["schemas"][0]["recommendation_quality"],
@@ -137,6 +138,44 @@ class BuildIntegrationPlanTests(unittest.TestCase):
         self.assertTrue(plan["schemas"][0]["export_workflow"]["recommended_apps"][0]["supports_recommended_version"])
         self.assertEqual(plan["schema_catalog_source"]["kind"], "installed-package")
         self.assertIn("not coming from the repository backup", plan["warnings"][0])
+
+    def test_report_markdown_includes_recommended_app_urls(self):
+        app_catalog = [
+            {
+                "id": "validator",
+                "name": "Validator",
+                "publisherName": "Seequent",
+                "publisherType": "first-party",
+                "integrationStatus": "connected",
+                "productUrl": "https://example.com/validator",
+                "support": [
+                    {
+                        "schema": "downhole-collection",
+                        "directions": ["import"],
+                        "versionSpecs": ["1.2.0"],
+                        "appVersionSpecs": [{"version": "2025.2.1", "released": True}],
+                    }
+                ],
+            }
+        ]
+        schema_catalog = {"downhole-collection": ["1.2.0", "1.0.1"]}
+
+        plan = build_integration_plan(
+            goal="create",
+            development_environment="JavaScript / TypeScript",
+            app_catalog=app_catalog,
+            schema_catalog=schema_catalog,
+            schema_catalog_source={"kind": "repo-backup", "description": "Repository-backed evo-schemas snapshot"},
+            data_type="Drillholes & boreholes",
+            schema_names=[],
+        )
+
+        self.assertEqual(
+            plan["schemas"][0]["export_workflow"]["recommended_apps"][0]["app_display_name"],
+            "Seequent Validator",
+        )
+        self.assertIn("Seequent Validator", plan["report_markdown"])
+        self.assertIn("url: https://example.com/validator", plan["report_markdown"])
 
 
 if __name__ == "__main__":

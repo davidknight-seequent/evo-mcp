@@ -96,12 +96,18 @@ def _get_integration_planning_prompt_content() -> str:
     return f"""\
         When helping a user plan a new Evo integration, ask exactly these questions first:
         1. Will the integration consume existing Evo objects or create new Evo objects?
-        2. Which geoscience data types does the integration need to work with?
+        2. Which one geoscience data type does the integration need to work with?
         3. What development environment will the integration be built in?
 
-        If the user needs to plan both directions, run the planner twice:
+        Offer exactly one goal per planning run:
         - once with `goal="consume"`
         - once with `goal="create"`
+
+        There is no `both` goal.
+        If the user needs plans for reading and writing, run separate planning passes.
+
+        Ask the user to choose exactly one data type label.
+        After they choose it, move straight to the next question.
 
         Supported data type labels:
 {data_types}
@@ -110,7 +116,7 @@ def _get_integration_planning_prompt_content() -> str:
 {environments}
 
         After you have those answers, call `plan_evo_integration` with the chosen goal,
-        data types, and development environment. Prefer `data_types` for broad user intent,
+        data type, and development environment. Use `data_type` for the selected label,
         and add `schema_names` only when the user names exact Evo schemas.
 
         Planning-only constraint:

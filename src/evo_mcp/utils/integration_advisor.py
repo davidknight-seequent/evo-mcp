@@ -277,6 +277,7 @@ def build_integration_plan(
     app_catalog: list[dict[str, Any]],
     schema_catalog: dict[str, list[str]],
     schema_catalog_source: dict[str, Any] | None = None,
+    data_type: str | None = None,
     data_types: list[str] | None = None,
     schema_names: list[str] | None = None,
     include_unreleased_app_versions: bool = True,
@@ -284,8 +285,9 @@ def build_integration_plan(
     """Build a structured integration plan from app and schema metadata."""
     normalized_goal = normalize_goal(goal)
     normalized_environment = normalize_environment(development_environment)
+    requested_data_types = [data_type] if data_type else (data_types or [])
     resolved = resolve_requested_schemas(
-        data_types=data_types or [],
+        data_types=requested_data_types,
         schema_names=schema_names or [],
         known_schemas=set(schema_catalog),
     )
@@ -326,6 +328,7 @@ def build_integration_plan(
             "summary": guidance["summary"],
             "resources": guidance["resources"],
         },
+        "selected_data_type": resolved["data_types"][0] if resolved["data_types"] else None,
         "selected_data_types": resolved["data_types"],
         "selected_schemas": selected_schemas,
         "schemas": schema_reports,
@@ -435,6 +438,10 @@ def collect_schema_support(
                 {
                     "app_id": app.get("id"),
                     "app_name": app.get("name"),
+                    "app_display_name": format_app_display_name(
+                        app.get("publisherName"),
+                        app.get("name"),
+                    ),
                     "publisher_name": app.get("publisherName"),
                     "publisher_type": app.get("publisherType"),
                     "category": app.get("category"),
@@ -479,6 +486,21 @@ def expand_version_specs(
             ):
                 expanded.add(version)
     return sort_versions_desc(expanded)
+
+
+def format_app_display_name(
+    publisher_name: str | None,
+    app_name: str | None,
+) -> str:
+    publisher = (publisher_name or "").strip()
+    name = (app_name or "").strip()
+    if not publisher:
+        return name
+    if not name:
+        return publisher
+    if name.casefold().startswith(f"{publisher.casefold()} "):
+        return name
+    return f"{publisher} {name}"
 
 
 def resolve_requested_schemas(
@@ -695,6 +717,7 @@ def render_app_lines(apps: list[dict[str, Any]]) -> list[str]:
 
     lines = []
     for app in apps:
+        app_label = app.get("app_display_name") or app.get("app_name") or "Unknown app"
         schema_versions = ", ".join(app["supported_schema_versions"]) or "Version unspecified"
         app_versions = ", ".join(
             app_version["version"] + (" (released)" if app_version["released"] is True else " (planned)" if app_version["released"] is False else "")
@@ -703,9 +726,11 @@ def render_app_lines(apps: list[dict[str, Any]]) -> list[str]:
         if not app_versions:
             app_versions = "Version unspecified"
         line = (
-            f"  - {app['app_name']}: schema {schema_versions}; "
+            f"  - {app_label}: schema {schema_versions}; "
             f"app {app_versions}; release state {app['release_state']}"
         )
+        if app.get("product_url"):
+            line += f"; url: {app['product_url']}"
         if app.get("note"):
             line += f"; note: {app['note']}"
         lines.append(line)
