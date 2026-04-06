@@ -174,8 +174,131 @@ class BuildIntegrationPlanTests(unittest.TestCase):
             plan["schemas"][0]["export_workflow"]["recommended_apps"][0]["app_display_name"],
             "Seequent Validator",
         )
+        self.assertEqual(
+            plan["schemas"][0]["best_documented_validation_target"],
+            "Seequent Validator 2025.2.1",
+        )
+        self.assertEqual(
+            plan["schemas"][0]["best_documented_validation_target_name"],
+            "Seequent Validator",
+        )
+        self.assertEqual(
+            plan["schemas"][0]["best_documented_validation_target_versions"],
+            "2025.2.1",
+        )
+        self.assertEqual(
+            plan["schemas"][0]["best_documented_validation_target_product_page_url"],
+            "https://example.com/validator",
+        )
+        self.assertIn(
+            {
+                "schema": "downhole-collection",
+                "recommended_build_version": "1.2.0",
+                "latest_schema_version": "1.2.0",
+                "best_documented_source_app": "None documented",
+                "best_documented_source_app_name": "None documented",
+                "best_documented_source_app_versions": "(version unspecified)",
+                "best_documented_source_app_product_page_url": "",
+                "best_documented_validation_app": "Seequent Validator 2025.2.1",
+                "best_documented_validation_app_name": "Seequent Validator",
+                "best_documented_validation_app_versions": "2025.2.1",
+                "best_documented_validation_app_product_page_url": "https://example.com/validator",
+            },
+            plan["schema_recommendations"],
+        )
+        self.assertIn(
+            {
+                "label": "downhole-collection docs",
+                "url": "https://developer.seequent.com/docs/data-structures/geoscience-objects/schemas/objects/downhole-collection",
+            },
+            plan["reference_links"],
+        )
+        self.assertIn(
+            {
+                "label": "Seequent Validator product page (downhole-collection validation app)",
+                "url": "https://example.com/validator",
+            },
+            plan["reference_links"],
+        )
+        self.assertIn(
+            {
+                "schema": "downhole-collection",
+                "workflow": "validation app",
+                "app_name": "Seequent Validator",
+                "product_page_url": "https://example.com/validator",
+            },
+            plan["app_product_pages"],
+        )
+        self.assertIn(
+            {
+                "schema": "downhole-collection",
+                "workflow": "validation app",
+                "app_name": "Seequent Validator",
+                "app_versions": "2025.2.1",
+                "release_state": "released",
+                "supports_recommended_version": True,
+                "schema_versions": "1.2.0",
+                "product_page_url": "https://example.com/validator",
+                "url": "https://example.com/validator",
+            },
+            plan["app_version_requirements"],
+        )
         self.assertIn("Seequent Validator", plan["report_markdown"])
-        self.assertIn("url: https://example.com/validator", plan["report_markdown"])
+        self.assertIn("## Schema summary", plan["report_markdown"])
+        self.assertIn(
+            "| downhole-collection | 1.2.0 | None documented | Seequent Validator 2025.2.1 |",
+            plan["report_markdown"],
+        )
+        self.assertIn("## App product pages", plan["report_markdown"])
+        self.assertIn("product page https://example.com/validator", plan["report_markdown"])
+        self.assertIn("## App version requirements", plan["report_markdown"])
+        self.assertIn("app 2025.2.1", plan["report_markdown"])
+        self.assertIn("## Quick links", plan["report_markdown"])
+        self.assertIn(
+            "https://developer.seequent.com/docs/data-structures/geoscience-objects/schemas/objects/downhole-collection",
+            plan["report_markdown"],
+        )
+        self.assertIn("product page: https://example.com/validator", plan["report_markdown"])
+
+    def test_uses_parenthesized_placeholder_for_unspecified_app_versions(self):
+        app_catalog = [
+            {
+                "id": "source-app",
+                "name": "Source App",
+                "publisherName": "Seequent",
+                "publisherType": "first-party",
+                "integrationStatus": "connected",
+                "productUrl": "https://example.com/source",
+                "support": [
+                    {
+                        "schema": "downhole-collection",
+                        "directions": ["export"],
+                        "versionSpecs": ["1.2.0"],
+                    }
+                ],
+            }
+        ]
+        schema_catalog = {"downhole-collection": ["1.2.0"]}
+
+        plan = build_integration_plan(
+            goal="consume",
+            development_environment="Python",
+            app_catalog=app_catalog,
+            schema_catalog=schema_catalog,
+            schema_catalog_source={"kind": "repo-backup", "description": "Repository-backed evo-schemas snapshot"},
+            data_type="Drillholes & boreholes",
+            schema_names=[],
+        )
+
+        self.assertEqual(
+            plan["schema_recommendations"][0]["best_documented_source_app"],
+            "Seequent Source App (version unspecified)",
+        )
+        self.assertEqual(
+            plan["app_version_requirements"][0]["app_versions"],
+            "(version unspecified)",
+        )
+        self.assertIn("(version unspecified)", plan["report_markdown"])
 
 
 if __name__ == "__main__":

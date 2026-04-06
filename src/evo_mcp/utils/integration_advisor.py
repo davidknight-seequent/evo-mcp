@@ -341,6 +341,10 @@ def build_integration_plan(
         report["warnings"].append(
             "Schema catalog is not coming from the repository backup. Refresh the local backup for the most reliable offline planning behavior."
         )
+    report["schema_recommendations"] = collect_schema_recommendations(report)
+    report["app_product_pages"] = collect_app_product_pages(report)
+    report["app_version_requirements"] = collect_app_version_requirements(report)
+    report["reference_links"] = collect_plan_reference_links(report)
     report["report_markdown"] = render_markdown_report(report)
     return report
 
@@ -375,6 +379,8 @@ def build_schema_report(
     )
     source_apps = sort_app_supports(source_apps, preferred_version=recommended_version)
     validation_apps = sort_app_supports(validation_apps, preferred_version=recommended_version)
+    best_documented_source_app = summarize_preferred_app(source_apps)
+    best_documented_validation_app = summarize_preferred_app(validation_apps)
 
     warnings = []
     if not available_versions:
@@ -400,6 +406,14 @@ def build_schema_report(
         "recommended_build_version": recommended_version,
         "recommendation_quality": recommendation_quality,
         "recommendation_reason": recommendation_reason,
+        "best_documented_source_app": best_documented_source_app["summary"],
+        "best_documented_source_app_name": best_documented_source_app["app_name"],
+        "best_documented_source_app_versions": best_documented_source_app["app_versions"],
+        "best_documented_source_app_product_page_url": best_documented_source_app["product_page_url"],
+        "best_documented_validation_target": best_documented_validation_app["summary"],
+        "best_documented_validation_target_name": best_documented_validation_app["app_name"],
+        "best_documented_validation_target_versions": best_documented_validation_app["app_versions"],
+        "best_documented_validation_target_product_page_url": best_documented_validation_app["product_page_url"],
         "import_workflow": {
             "workflow_label": "Source apps for consume workflows",
             "recommended_apps": source_apps,
@@ -501,6 +515,169 @@ def format_app_display_name(
     if name.casefold().startswith(f"{publisher.casefold()} "):
         return name
     return f"{publisher} {name}"
+
+
+def format_app_versions_summary(app: dict[str, Any]) -> str:
+    app_versions = ", ".join(
+        app_version["version"]
+        + (
+            " (unreleased)"
+            if app_version["released"] is False
+            else ""
+        )
+        for app_version in app["app_versions"]
+    )
+    return app_versions or "(version unspecified)"
+
+
+def summarize_preferred_app(apps: list[dict[str, Any]]) -> dict[str, str]:
+    if not apps:
+        return {
+            "app_name": "None documented",
+            "app_versions": "(version unspecified)",
+            "product_page_url": "",
+            "schema_versions": "(version unspecified)",
+            "summary": "None documented",
+        }
+
+    app = apps[0]
+    app_name = app.get("app_display_name") or app.get("app_name") or "Unknown app"
+    app_versions = format_app_versions_summary(app)
+    schema_versions = ", ".join(app["supported_schema_versions"]) or "Version unspecified"
+    summary = f"{app_name} {app_versions}"
+    return {
+        "app_name": app_name,
+        "app_versions": app_versions,
+        "product_page_url": app.get("product_url") or "",
+        "schema_versions": schema_versions,
+        "summary": summary,
+    }
+
+
+def collect_schema_recommendations(plan: dict[str, Any]) -> list[dict[str, str]]:
+    recommendations: list[dict[str, str]] = []
+
+    for schema in plan["schemas"]:
+        source_app = summarize_preferred_app(schema["import_workflow"]["recommended_apps"])
+        validation_app = summarize_preferred_app(schema["export_workflow"]["recommended_apps"])
+        recommendations.append(
+            {
+                "schema": schema["schema"],
+                "recommended_build_version": schema["recommended_build_version"] or "None documented",
+                "latest_schema_version": schema["latest_schema_version"] or "None documented",
+                "best_documented_source_app": source_app["summary"],
+                "best_documented_source_app_name": source_app["app_name"],
+                "best_documented_source_app_versions": source_app["app_versions"],
+                "best_documented_source_app_product_page_url": source_app["product_page_url"],
+                "best_documented_validation_app": validation_app["summary"],
+                "best_documented_validation_app_name": validation_app["app_name"],
+                "best_documented_validation_app_versions": validation_app["app_versions"],
+                "best_documented_validation_app_product_page_url": validation_app["product_page_url"],
+            }
+        )
+
+    return recommendations
+
+
+def collect_app_version_requirements(plan: dict[str, Any]) -> list[dict[str, str | bool]]:
+    requirements: list[dict[str, str | bool]] = []
+
+    for schema in plan["schemas"]:
+        for workflow_key, workflow_label in (
+            ("import_workflow", "source app"),
+            ("export_workflow", "validation app"),
+        ):
+            for app in schema[workflow_key]["recommended_apps"]:
+                requirements.append(
+                    {
+                        "schema": schema["schema"],
+                        "workflow": workflow_label,
+                        "app_name": app.get("app_display_name") or app.get("app_name") or "Unknown app",
+                        "app_versions": format_app_versions_summary(app),
+                        "release_state": app["release_state"],
+                        "supports_recommended_version": app["supports_recommended_version"],
+                        "schema_versions": ", ".join(app["supported_schema_versions"]) or "Version unspecified",
+                        "product_page_url": app.get("product_url") or "",
+                        "url": app.get("product_url") or "",
+                    }
+                )
+
+    return requirements
+
+
+def collect_app_product_pages(plan: dict[str, Any]) -> list[dict[str, str]]:
+    product_pages: list[dict[str, str]] = []
+
+    for schema in plan["schemas"]:
+        for workflow_key, workflow_label in (
+            ("import_workflow", "source app"),
+            ("export_workflow", "validation app"),
+        ):
+            for app in schema[workflow_key]["recommended_apps"]:
+                product_page_url = app.get("product_url")
+                if not product_page_url:
+                    continue
+                product_pages.append(
+                    {
+                        "schema": schema["schema"],
+                        "workflow": workflow_label,
+                        "app_name": app.get("app_display_name") or app.get("app_name") or "Unknown app",
+                        "product_page_url": product_page_url,
+                    }
+                )
+
+    unique_pages: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for page in product_pages:
+        key = (page["schema"], page["workflow"], page["product_page_url"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_pages.append(page)
+    return unique_pages
+
+
+def collect_plan_reference_links(plan: dict[str, Any]) -> list[dict[str, str]]:
+    links: list[dict[str, str]] = []
+
+    for resource in plan["development_environment"]["resources"]:
+        url = resource.get("url")
+        if url:
+            links.append({"label": resource["title"], "url": url})
+
+    for schema in plan["schemas"]:
+        links.append({
+            "label": f"{schema['schema']} docs",
+            "url": schema["schema_docs_url"],
+        })
+        links.append({
+            "label": f"{schema['schema']} repository",
+            "url": schema["schema_repo_url"],
+        })
+
+        for workflow_key, workflow_label in (
+            ("import_workflow", "source app"),
+            ("export_workflow", "validation app"),
+        ):
+            for app in schema[workflow_key]["recommended_apps"]:
+                url = app.get("product_url")
+                if not url:
+                    continue
+                app_label = app.get("app_display_name") or app.get("app_name") or "Unknown app"
+                links.append({
+                    "label": f"{app_label} product page ({schema['schema']} {workflow_label})",
+                    "url": url,
+                })
+
+    unique_links: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for link in links:
+        key = (link["label"], link["url"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_links.append(link)
+    return unique_links
 
 
 def resolve_requested_schemas(
@@ -687,6 +864,55 @@ def render_markdown_report(plan: dict[str, Any]) -> str:
     for resource in plan["development_environment"]["resources"]:
         lines.append(f"- {resource['title']}: {resource['url']}")
 
+    if plan.get("schema_recommendations"):
+        lines.extend(
+            [
+                "",
+                "## Schema summary",
+                "| Schema | Recommended build version | Best documented source app | Best documented validation app |",
+                "| --- | --- | --- | --- |",
+            ]
+        )
+        for recommendation in plan["schema_recommendations"]:
+            lines.append(
+                "| "
+                + recommendation["schema"]
+                + " | "
+                + recommendation["recommended_build_version"]
+                + " | "
+                + recommendation["best_documented_source_app"]
+                + " | "
+                + recommendation["best_documented_validation_app"]
+                + " |"
+            )
+
+    if plan.get("app_product_pages"):
+        lines.extend(["", "## App product pages"])
+        for product_page in plan["app_product_pages"]:
+            lines.append(
+                f"- {product_page['app_name']} for {product_page['schema']} ({product_page['workflow']}): "
+                f"product page {product_page['product_page_url']}"
+            )
+
+    if plan.get("app_version_requirements"):
+        lines.extend(["", "## App version requirements"])
+        for requirement in plan["app_version_requirements"]:
+            line = (
+                f"- {requirement['app_name']} for {requirement['schema']} ({requirement['workflow']}): "
+                f"app {requirement['app_versions']}; schema {requirement['schema_versions']}; "
+                f"release state {requirement['release_state']}"
+            )
+            if requirement["supports_recommended_version"]:
+                line += "; supports recommended schema version"
+            if requirement["product_page_url"]:
+                line += f"; product page: {requirement['product_page_url']}"
+            lines.append(line)
+
+    if plan.get("reference_links"):
+        lines.extend(["", "## Quick links"])
+        for link in plan["reference_links"]:
+            lines.append(f"- {link['label']}: {link['url']}")
+
     for schema in plan["schemas"]:
         lines.extend(
             [
@@ -719,12 +945,7 @@ def render_app_lines(apps: list[dict[str, Any]]) -> list[str]:
     for app in apps:
         app_label = app.get("app_display_name") or app.get("app_name") or "Unknown app"
         schema_versions = ", ".join(app["supported_schema_versions"]) or "Version unspecified"
-        app_versions = ", ".join(
-            app_version["version"] + (" (released)" if app_version["released"] is True else " (planned)" if app_version["released"] is False else "")
-            for app_version in app["app_versions"]
-        )
-        if not app_versions:
-            app_versions = "Version unspecified"
+        app_versions = format_app_versions_summary(app)
         line = (
             f"  - {app_label}: schema {schema_versions}; "
             f"app {app_versions}; release state {app['release_state']}"

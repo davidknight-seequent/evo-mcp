@@ -65,6 +65,14 @@ The `plan_evo_integration` tool is designed to mirror the Evo Developer Atlas in
 There is no `both` goal. If an integration needs plans for reading and writing, run the planner twice: once with `goal="consume"` and once with `goal="create"`.
 
 Ask the user to pick one data type option. After that selection is made, move directly to the development-environment question.
+Present the answer choices neutrally.
+Do not mark any answer as recommended or default when presenting those questions.
+For the goal question, present exactly these option labels:
+
+* `Consume Evo objects`
+* `Create Evo objects`
+
+Do not append annotations like `(Recommended)` to any option label.
 
 The tool then combines two inputs:
 

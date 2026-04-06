@@ -108,6 +108,12 @@ def _get_integration_planning_prompt_content() -> str:
 
         Ask the user to choose exactly one data type label.
         After they choose it, move straight to the next question.
+        Present the answer choices neutrally.
+        Do not mark any answer as recommended or default when presenting those questions.
+        For the goal question, present exactly these option labels:
+        - Consume Evo objects
+        - Create Evo objects
+        Do not append annotations like "(Recommended)" to any option label.
 
         Supported data type labels:
 {data_types}
