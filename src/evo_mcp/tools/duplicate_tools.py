@@ -12,6 +12,7 @@ one or more data blobs, indicating potential duplicates.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from collections import defaultdict
 from itertools import combinations
@@ -22,6 +23,7 @@ from evo.common.data import Environment
 from evo.objects import ObjectAPIClient
 
 from evo_mcp.context import evo_context, ensure_initialized
+from evo_mcp.utils.downloaded_object_utils import downloaded_object_data_links
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,19 @@ def _is_pagination_limit_error(exc: Exception) -> bool:
     return "pagination limit exceeded" in str(exc).lower()
 
 
+def _supports_request_timeout(fetch_page: Callable[..., Awaitable[Any]]) -> bool:
+    try:
+        signature = inspect.signature(fetch_page)
+    except (TypeError, ValueError):
+        return True
+
+    for parameter in signature.parameters.values():
+        if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+            return True
+
+    return "request_timeout" in signature.parameters
+
+
 async def _list_all_pages(
     fetch_page: Callable[..., Awaitable[Any]],
     *,
@@ -43,6 +58,7 @@ async def _list_all_pages(
     resource_name: str,
 ) -> list[Any]:
     current_page_size = max(MIN_PAGE_SIZE, page_size)
+    supports_request_timeout = _supports_request_timeout(fetch_page)
 
     while True:
         items: list[Any] = []
@@ -50,11 +66,14 @@ async def _list_all_pages(
 
         try:
             while True:
-                page = await fetch_page(
-                    offset=offset,
-                    limit=current_page_size,
-                    request_timeout=LIST_REQUEST_TIMEOUT_SECONDS,
-                )
+                fetch_kwargs = {
+                    "offset": offset,
+                    "limit": current_page_size,
+                }
+                if supports_request_timeout:
+                    fetch_kwargs["request_timeout"] = LIST_REQUEST_TIMEOUT_SECONDS
+
+                page = await fetch_page(**fetch_kwargs)
                 page_items = page.items()
                 if not page_items and not page.is_last:
                     raise RuntimeError(
@@ -147,11 +166,9 @@ def _fmt_overlap_pct(shared: int, left_total: int, right_total: int) -> str:
 def _parse_pct(value: str) -> float:
     return float(value.rstrip("%")) if value.endswith("%") else float(value)
 
-
 async def _scan_object(
     *,
     object_client: ObjectAPIClient,
-    org_id: UUID,
     workspace_id: UUID,
     workspace_name: str,
     object_metadata: Any,
@@ -176,23 +193,14 @@ async def _scan_object(
 
     async with semaphore:
         try:
-            response = await object_client._objects_api.get_object_by_id(
-                object_id=str(object_metadata.id),
-                org_id=str(org_id),
-                workspace_id=str(workspace_id),
+            downloaded = await object_client.download_object_by_id(
+                UUID(str(object_metadata.id)),
                 version=object_metadata.version_id,
-                additional_headers={"Accept-Encoding": "gzip"},
                 request_timeout=OBJECT_FETCH_TIMEOUT_SECONDS,
             )
 
-            record["schema"] = response.object.model_dump(mode="python", by_alias=True).get("schema")
-
-            for link in getattr(getattr(response, "links", None), "data", []) or []:
-                blob_hash = str(getattr(link, "name", getattr(link, "id", "")))
-                if blob_hash:
-                    record["blob_hashes"].append(blob_hash)
-
-            record["blob_hashes"].sort()
+            record["schema"] = downloaded.as_dict().get("schema")
+            record["blob_hashes"] = [link["name"] for link in downloaded_object_data_links(downloaded)]
         except Exception as exc:
             record["scan_error"] = str(exc)
 
@@ -259,7 +267,6 @@ async def _run_duplicate_analysis(
             *[
                 _scan_object(
                     object_client=object_client,
-                    org_id=org_id,
                     workspace_id=workspace.id,
                     workspace_name=ws_name,
                     object_metadata=obj,
@@ -295,6 +302,7 @@ async def _run_duplicate_analysis(
                     "object_id": rec["object_id"],
                     "object_name": rec["object_name"],
                     "object_path": rec["object_path"],
+                    "version_id": rec["version_id"],
                     "schema": rec.get("schema"),
                     "schema_id": rec["schema_id"],
                     "created_at": rec["created_at"],
@@ -330,19 +338,37 @@ async def _run_duplicate_analysis(
         right_total = object_blob_counts.get(right_key, 0)
         rows.append({
             "object_1_workspace": left.get("workspace_name", "unknown"),
+            "object_1_workspace_id": left.get("workspace_id", ""),
             "object_1_name": _clean_object_name(left),
+            "object_1_id": left.get("object_id", ""),
+            "object_1_path": left.get("object_path", ""),
+            "object_1_version_id": left.get("version_id", ""),
             "object_1_schema": _fmt_object_schema(left),
             "object_1_blobs": left_total,
             "object_1_created_by": left.get("created_by", "unknown"),
             "object_1_created_at": left.get("created_at", "unknown"),
             "object_2_workspace": right.get("workspace_name", "unknown"),
+            "object_2_workspace_id": right.get("workspace_id", ""),
             "object_2_name": _clean_object_name(right),
+            "object_2_id": right.get("object_id", ""),
+            "object_2_path": right.get("object_path", ""),
+            "object_2_version_id": right.get("version_id", ""),
             "object_2_schema": _fmt_object_schema(right),
             "object_2_blobs": right_total,
             "object_2_created_by": right.get("created_by", "unknown"),
             "object_2_created_at": right.get("created_at", "unknown"),
             "shared_blobs": shared,
             "blob_overlap_pct": _fmt_overlap_pct(shared, left_total, right_total),
+            "compare_inputs": {
+                "left_instance_id": str(org_id),
+                "left_workspace_id": left.get("workspace_id", ""),
+                "left_object_id": left.get("object_id", ""),
+                "left_version": left.get("version_id", ""),
+                "right_instance_id": str(org_id),
+                "right_workspace_id": right.get("workspace_id", ""),
+                "right_object_id": right.get("object_id", ""),
+                "right_version": right.get("version_id", ""),
+            },
         })
 
     # Sort by overlap descending
@@ -393,8 +419,10 @@ def register_duplicate_tools(mcp):
               - summary: high-level counts (workspaces scanned, objects, duplicates, etc.)
               - workspaces: per-workspace scan statistics
               - duplicate_pairs: list of object pairs with shared blobs, sorted by
-                overlap percentage descending. Each entry includes both objects'
-                workspace, name, schema, blob counts, and the overlap percentage.
+                                overlap percentage descending. Each entry includes both objects'
+                                workspace, object identifiers, schema, blob counts, overlap, and
+                                a `compare_inputs` payload that can be passed directly to
+                                `compare_evo_objects_detailed`.
         """
         if workspace_ids and workspace_names:
             return {"error": "Provide either workspace_ids or workspace_names, not both."}

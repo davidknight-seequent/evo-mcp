@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Bentley Systems, Incorporated
+#
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 import unittest
@@ -6,7 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import UUID
 
-import duplicate_analysis
+from evo_mcp.utils import duplicate_analysis
 
 
 def _user(name: str) -> SimpleNamespace:
@@ -43,15 +47,16 @@ class _FakeObjectModel:
         return {"schema": self._schema}
 
 
-class _FakeResponse:
+class _FakeDownloadedObject:
     def __init__(self, *, schema: str, blob_names: list[str]) -> None:
-        self.object = _FakeObjectModel(schema)
-        self.links = SimpleNamespace(
-            data=[
-                SimpleNamespace(name=blob_name, download_url=f"https://example.invalid/{blob_name}")
-                for blob_name in blob_names
-            ]
-        )
+        self._object = _FakeObjectModel(schema)
+        self._urls_by_name = {
+            blob_name: f"https://example.invalid/{blob_name}"
+            for blob_name in blob_names
+        }
+
+    def as_dict(self) -> dict[str, str]:
+        return self._object.model_dump(mode="python", by_alias=True)
 
 
 class _FakeObjectAPIClient:
@@ -59,21 +64,17 @@ class _FakeObjectAPIClient:
 
     def __init__(self, env, connector) -> None:  # noqa: ANN001
         self.workspace_id = str(env.workspace_id)
-        self._objects_api = self
 
     async def list_all_objects(self, limit_per_request: int = 5000):
         return self.DATA[self.workspace_id]["objects"]
 
-    async def get_object_by_id(
+    async def download_object_by_id(
         self,
-        *,
-        object_id: str,
-        org_id: str,
-        workspace_id: str,
+        object_id: UUID,
         version: str,
-        additional_headers: dict[str, str],
     ):
-        response = self.DATA[workspace_id]["responses"][object_id]
+        del version
+        response = self.DATA[self.workspace_id]["responses"][str(object_id)]
         if isinstance(response, Exception):
             raise response
         return response
@@ -124,11 +125,11 @@ class AnalyzeDuplicateObjectsTests(unittest.IsolatedAsyncioTestCase):
                 str(workspace.id): {
                     "objects": [object_1, object_2],
                     "responses": {
-                        str(object_1.id): _FakeResponse(
+                        str(object_1.id): _FakeDownloadedObject(
                             schema="/objects/geological-model-meshes/1.0.1/geological-model-meshes.schema.json",
                             blob_names=["blob-a", "blob-b"],
                         ),
-                        str(object_2.id): _FakeResponse(
+                        str(object_2.id): _FakeDownloadedObject(
                             schema="/objects/geological-model-meshes/1.0.1/geological-model-meshes.schema.json",
                             blob_names=["blob-b", "blob-c"],
                         ),
@@ -175,12 +176,12 @@ class AnalyzeDuplicateObjectsTests(unittest.IsolatedAsyncioTestCase):
                 str(workspace.id): {
                     "objects": [blobless, broken, comparable],
                     "responses": {
-                        str(blobless.id): _FakeResponse(
+                        str(blobless.id): _FakeDownloadedObject(
                             schema="/objects/pointsets/1.0.0/pointsets.schema.json",
                             blob_names=[],
                         ),
                         str(broken.id): RuntimeError("boom"),
-                        str(comparable.id): _FakeResponse(
+                        str(comparable.id): _FakeDownloadedObject(
                             schema="/objects/pointsets/1.0.0/pointsets.schema.json",
                             blob_names=["blob-a"],
                         ),
@@ -219,11 +220,11 @@ class AnalyzeDuplicateObjectsTests(unittest.IsolatedAsyncioTestCase):
                 str(workspace.id): {
                     "objects": [object_1, object_2],
                     "responses": {
-                        str(object_1.id): _FakeResponse(
+                        str(object_1.id): _FakeDownloadedObject(
                             schema="/objects/meshes/1.0.0/meshes.schema.json",
                             blob_names=["blob-a", "blob-a"],
                         ),
-                        str(object_2.id): _FakeResponse(
+                        str(object_2.id): _FakeDownloadedObject(
                             schema="/objects/meshes/1.0.0/meshes.schema.json",
                             blob_names=["blob-a"],
                         ),
@@ -264,11 +265,11 @@ class AnalyzeDuplicateObjectsTests(unittest.IsolatedAsyncioTestCase):
                 str(workspace.id): {
                     "objects": [object_1, object_2],
                     "responses": {
-                        str(object_1.id): _FakeResponse(
+                        str(object_1.id): _FakeDownloadedObject(
                             schema="/objects/pointsets/1.0.0/pointsets.schema.json",
                             blob_names=["blob-a"],
                         ),
-                        str(object_2.id): _FakeResponse(
+                        str(object_2.id): _FakeDownloadedObject(
                             schema="/objects/pointsets/1.0.0/pointsets.schema.json",
                             blob_names=["blob-b"],
                         ),

@@ -58,10 +58,16 @@ class _FakeObjectModel:
         return {"schema": self._schema}
 
 
-class _FakeResponse:
+class _FakeDownloadedObject:
     def __init__(self, *, schema: str, blob_names: list[str]) -> None:
-        self.object = _FakeObjectModel(schema)
-        self.links = SimpleNamespace(data=[SimpleNamespace(name=blob_name) for blob_name in blob_names])
+        self._object = _FakeObjectModel(schema)
+        self._urls_by_name = {
+            blob_name: f"https://example.invalid/{blob_name}"
+            for blob_name in blob_names
+        }
+
+    def as_dict(self) -> dict[str, str]:
+        return self._object.model_dump(mode="python", by_alias=True)
 
 
 class _FakeWorkspaceClient:
@@ -87,7 +93,6 @@ class _FakeObjectAPIClient:
 
     def __init__(self, env, connector) -> None:  # noqa: ANN001
         self.workspace_id = str(env.workspace_id)
-        self._objects_api = self
 
     async def list_objects(self, *, offset: int = 0, limit: int = 5000, **_: object) -> _FakePage:
         self.LIST_CALLS.append((self.workspace_id, offset, limit))
@@ -98,19 +103,15 @@ class _FakeObjectAPIClient:
         items = objects[offset : offset + limit]
         return _FakePage(items=items, offset=offset, limit=limit, total=len(objects))
 
-    async def get_object_by_id(
+    async def download_object_by_id(
         self,
-        *,
-        object_id: str,
-        org_id: str,
-        workspace_id: str,
+        object_id: UUID,
         version: str,
-        additional_headers: dict[str, str],
         request_timeout=None,
     ):
-        del org_id, version, additional_headers
+        del version
         self.OBJECT_TIMEOUTS.append(request_timeout)
-        return self.DATA[workspace_id]["responses"][object_id]
+        return self.DATA[self.workspace_id]["responses"][str(object_id)]
 
 
 class _ZeroProgressPage:
@@ -160,15 +161,15 @@ class DuplicateToolsTests(unittest.IsolatedAsyncioTestCase):
             str(workspace.id): {
                 "objects": [object_1, object_2, object_3],
                 "responses": {
-                    str(object_1.id): _FakeResponse(
+                    str(object_1.id): _FakeDownloadedObject(
                         schema="/objects/pointsets/1.0.0/pointsets.schema.json",
                         blob_names=["blob-a"],
                     ),
-                    str(object_2.id): _FakeResponse(
+                    str(object_2.id): _FakeDownloadedObject(
                         schema="/objects/pointsets/1.0.0/pointsets.schema.json",
                         blob_names=["blob-a", "blob-b"],
                     ),
-                    str(object_3.id): _FakeResponse(
+                    str(object_3.id): _FakeDownloadedObject(
                         schema="/objects/pointsets/1.0.0/pointsets.schema.json",
                         blob_names=["blob-c"],
                     ),
@@ -204,6 +205,23 @@ class DuplicateToolsTests(unittest.IsolatedAsyncioTestCase):
             [duplicate_tools.OBJECT_FETCH_TIMEOUT_SECONDS] * 3,
             _FakeObjectAPIClient.OBJECT_TIMEOUTS,
         )
+        pair = result["duplicate_pairs"][0]
+        self.assertEqual(str(object_1.id), pair["object_1_id"])
+        self.assertEqual(str(object_2.id), pair["object_2_id"])
+        self.assertEqual(str(workspace.id), pair["object_1_workspace_id"])
+        self.assertEqual(
+            {
+                "left_instance_id": str(fake_context.org_id),
+                "left_workspace_id": str(workspace.id),
+                "left_object_id": str(object_1.id),
+                "left_version": object_1.version_id,
+                "right_instance_id": str(fake_context.org_id),
+                "right_workspace_id": str(workspace.id),
+                "right_object_id": str(object_2.id),
+                "right_version": object_2.version_id,
+            },
+            pair["compare_inputs"],
+        )
 
     async def test_list_all_pages_fails_fast_on_zero_progress_page(self) -> None:
         async def fetch_page(*, offset: int = 0, limit: int = 100, request_timeout=None):
@@ -216,6 +234,23 @@ class DuplicateToolsTests(unittest.IsolatedAsyncioTestCase):
                 page_size=duplicate_tools.DEFAULT_OBJECT_PAGE_SIZE,
                 resource_name="objects",
             )
+
+    async def test_list_all_pages_omits_request_timeout_when_fetcher_does_not_support_it(self) -> None:
+        workspace = SimpleNamespace(id="workspace-1")
+        calls: list[tuple[int, int]] = []
+
+        async def fetch_page(*, offset: int = 0, limit: int = 100):
+            calls.append((offset, limit))
+            return _FakePage(items=[workspace][offset : offset + limit], offset=offset, limit=limit, total=1)
+
+        result = await duplicate_tools._list_all_pages(
+            fetch_page,
+            page_size=duplicate_tools.DEFAULT_WORKSPACE_PAGE_SIZE,
+            resource_name="workspaces",
+        )
+
+        self.assertEqual([workspace], result)
+        self.assertEqual([(0, duplicate_tools.DEFAULT_WORKSPACE_PAGE_SIZE)], calls)
 
 
 if __name__ == "__main__":

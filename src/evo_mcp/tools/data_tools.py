@@ -13,12 +13,6 @@ from uuid import UUID
 from evo_mcp.context import evo_context, ensure_initialized
 from evo_mcp.utils.evo_data_utils import extract_data_references
 
-# Set up logging to file for debugging
-logging.basicConfig(
-    filename='mcp_tools_debug.log',
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 

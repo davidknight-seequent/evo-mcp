@@ -5,12 +5,13 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from evo_mcp.tools.object_compare_tools import _inspect_parquet_bytes, register_object_compare_tools
+from evo_mcp.tools.object_compare_tools import _inspect_parquet_bytes, _resolve_object_side, register_object_compare_tools
 
 
 class _FakeMCP:
@@ -57,6 +58,76 @@ class InspectParquetBytesTests(unittest.TestCase):
 
 
 class CompareEvoObjectsDetailedTests(unittest.IsolatedAsyncioTestCase):
+    async def test_resolve_object_side_uses_downloaded_object_payload_and_urls(self) -> None:
+        fake_workspace = SimpleNamespace(
+            id="workspace-1",
+            display_name="Workspace One",
+            get_environment=lambda: "workspace-env",
+        )
+        fake_downloaded = SimpleNamespace(
+            metadata=SimpleNamespace(
+                id="object-1",
+                name="Object One",
+                path="/Object One.json",
+                version_id="v1",
+                schema_id=SimpleNamespace(sub_classification="pointsets"),
+                created_at=None,
+                modified_at=None,
+            ),
+            as_dict=lambda: {
+                "schema": "/objects/pointsets/1.0.0/pointsets.schema.json",
+                "crs": "EPSG:2193",
+                "properties": {"units": "m"},
+            },
+            _urls_by_name={
+                "blob-a": "https://example.invalid/a",
+                "blob-b": "https://example.invalid/b",
+            },
+        )
+        fake_object_client = SimpleNamespace(
+            download_object_by_id=AsyncMock(return_value=fake_downloaded),
+        )
+        fake_connector = SimpleNamespace(_transport=object(), _authorizer=object())
+        fake_evo_context = SimpleNamespace(connector=fake_connector)
+
+        async def fake_inspect_data_link(link, connector):
+            return {
+                "blob_name": link["name"],
+                "download_url": link["download_url"],
+                "num_rows": 3,
+            }
+
+        with (
+            patch("evo_mcp.tools.object_compare_tools._resolve_instance", AsyncMock(return_value={"id": "instance-1", "name": "Instance One", "hub_url": "https://hub.example.invalid"})),
+            patch("evo_mcp.tools.object_compare_tools._resolve_workspace", AsyncMock(return_value=fake_workspace)),
+            patch("evo_mcp.tools.object_compare_tools.APIConnector", return_value=object()),
+            patch("evo_mcp.tools.object_compare_tools.ObjectAPIClient", return_value=fake_object_client),
+            patch("evo_mcp.tools.object_compare_tools._inspect_data_link", side_effect=fake_inspect_data_link),
+            patch("evo_mcp.tools.object_compare_tools.evo_context", fake_evo_context),
+        ):
+            result = await _resolve_object_side(
+                side_name="left",
+                workspace_id="00000000-0000-0000-0000-000000000001",
+                object_id="00000000-0000-0000-0000-000000000002",
+            )
+
+        self.assertEqual("object-1", result["object"]["id"])
+        self.assertEqual("/objects/pointsets/1.0.0/pointsets.schema.json", result["object"]["schema"])
+        self.assertEqual(
+            [
+                {"index": 1, "name": "blob-a", "id": "blob-a", "download_url": "https://example.invalid/a"},
+                {"index": 2, "name": "blob-b", "id": "blob-b", "download_url": "https://example.invalid/b"},
+            ],
+            result["data_links"],
+        )
+        self.assertEqual(
+            [
+                {"blob_name": "blob-a", "download_url": "https://example.invalid/a", "num_rows": 3},
+                {"blob_name": "blob-b", "download_url": "https://example.invalid/b", "num_rows": 3},
+            ],
+            result["parquet_files"],
+        )
+
     async def test_builds_json_and_parquet_summary_report(self) -> None:
         fake_mcp = _FakeMCP()
         register_object_compare_tools(fake_mcp)

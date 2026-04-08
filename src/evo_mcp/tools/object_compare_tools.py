@@ -27,6 +27,7 @@ from evo.objects import ObjectAPIClient
 from evo.workspaces import WorkspaceAPIClient
 
 from evo_mcp.context import evo_context, ensure_initialized
+from evo_mcp.utils.downloaded_object_utils import downloaded_object_data_links
 
 
 def _normalize_schema_id(schema_id: Any) -> str | None:
@@ -141,7 +142,6 @@ def _compare_json_payloads(left_payload: dict[str, Any], right_payload: dict[str
         "right_only_paths_sample": right_only_paths[:max_differences],
         "different_values_sample": differing_values[:max_differences],
     }
-
 
 async def _get_authorization_headers(connector: APIConnector) -> dict[str, str]:
     authorizer = getattr(connector, "_authorizer", None)
@@ -371,25 +371,8 @@ async def _resolve_object_side(
         downloaded = await object_client.download_object_by_path(object_path, version=requested_version)
 
     metadata = downloaded.metadata
-    response = await object_client._objects_api.get_object_by_id(
-        object_id=str(metadata.id),
-        org_id=instance["id"],
-        workspace_id=str(workspace.id),
-        version=metadata.version_id,
-        additional_headers={"Accept-Encoding": "gzip"},
-    )
-
-    object_payload = response.object.model_dump(mode="python", by_alias=True)
-    data_links = []
-    for index, link in enumerate(getattr(getattr(response, "links", None), "data", []) or [], start=1):
-        data_links.append(
-            {
-                "index": index,
-                "name": str(getattr(link, "name", getattr(link, "id", f"blob-{index}"))),
-                "id": str(getattr(link, "id", "") or ""),
-                "download_url": getattr(link, "download_url", None),
-            }
-        )
+    object_payload = downloaded.as_dict()
+    data_links = downloaded_object_data_links(downloaded)
 
     parquet_files = await asyncio.gather(*[_inspect_data_link(link, connector) for link in data_links])
     schema_path = object_payload.get("schema")

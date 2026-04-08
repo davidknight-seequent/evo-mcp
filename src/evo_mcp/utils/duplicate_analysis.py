@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Bentley Systems, Incorporated
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""Reusable duplicate-object analysis helpers."""
+
 from __future__ import annotations
 
 import asyncio
@@ -8,11 +14,12 @@ from itertools import combinations
 from typing import Any, Awaitable, Callable
 from uuid import UUID
 
-from evo.common.data import Environment
 from evo.common import APIConnector
+from evo.common.data import Environment
 from evo.objects import ObjectAPIClient
 from evo.workspaces import Workspace
 
+from evo_mcp.utils.downloaded_object_utils import downloaded_object_data_links
 
 ProgressCallback = Callable[[dict[str, Any]], None | Awaitable[None]]
 
@@ -178,7 +185,6 @@ async def _emit_progress(progress_callback: ProgressCallback | None, payload: di
 async def _scan_object_details(
     *,
     object_client: ObjectAPIClient,
-    org_id: UUID,
     workspace: Workspace,
     workspace_name: str,
     object_metadata: Any,
@@ -203,24 +209,18 @@ async def _scan_object_details(
 
     async with semaphore:
         try:
-            response = await object_client._objects_api.get_object_by_id(
-                object_id=str(object_metadata.id),
-                org_id=str(org_id),
-                workspace_id=str(workspace.id),
+            downloaded = await object_client.download_object_by_id(
+                UUID(str(object_metadata.id)),
                 version=object_metadata.version_id,
-                additional_headers={"Accept-Encoding": "gzip"},
             )
 
-            object_record["object_json"] = response.object.model_dump(mode="python", by_alias=True)
+            object_record["object_json"] = downloaded.as_dict()
             object_record["schema"] = object_record["object_json"].get("schema")
             blob_refs: list[tuple[str, dict[str, Any]]] = []
 
-            for link in getattr(getattr(response, "links", None), "data", []) or []:
-                blob_hash = str(getattr(link, "name", getattr(link, "id", "")))
-                download_url = getattr(link, "download_url", None)
-
-                if not blob_hash:
-                    continue
+            for link in downloaded_object_data_links(downloaded):
+                blob_hash = link["name"]
+                download_url = link["download_url"]
 
                 object_record["data_hashes"].append(blob_hash)
                 object_record["data_links"].append({"name": blob_hash, "download": download_url})
@@ -326,7 +326,6 @@ async def analyze_duplicate_objects(
             )
 
     for workspace, workspace_name, object_client, objects in workspace_objects:
-
         workspace_scan[str(workspace.id)] = {
             "workspace_name": workspace_name,
             "workspace_id": str(workspace.id),
@@ -338,7 +337,6 @@ async def analyze_duplicate_objects(
             *[
                 _scan_object_details(
                     object_client=object_client,
-                    org_id=org_id,
                     workspace=workspace,
                     workspace_name=workspace_name,
                     object_metadata=object_metadata,
@@ -359,8 +357,9 @@ async def analyze_duplicate_objects(
                 blob_index[blob_hash].append(ref)
                 object_lookup[scanned_object.object_key] = ref
 
+            workspace_scan[str(workspace.id)]["objects"].append(scanned_object.object_record)
+
             if scanned_object.error is not None:
-                workspace_scan[str(workspace.id)]["objects"].append(scanned_object.object_record)
                 object_download_errors.append(
                     {
                         "workspace_id": str(workspace.id),
@@ -370,9 +369,6 @@ async def analyze_duplicate_objects(
                         "error": scanned_object.error,
                     }
                 )
-                continue
-
-            workspace_scan[str(workspace.id)]["objects"].append(scanned_object.object_record)
 
     object_pair_duplicate_counts: defaultdict[tuple[tuple[str, str], tuple[str, str]], int] = defaultdict(int)
 
@@ -428,6 +424,3 @@ async def analyze_duplicate_objects(
         duplicate_blob_hash_count=duplicate_blob_hash_count,
         rows=rows,
     )
-
-
-from duplicate_analysis_rendering import build_analysis_result_widget, render_analysis_result

@@ -6,6 +6,7 @@
 Utility modules for Evo MCP operations.
 """
 
+from .duplicate_analysis import AnalysisResult, analyze_duplicate_objects
 from .evo_data_utils import extract_data_references, copy_object_data
 from .object_builders import (
     BaseObjectBuilder,
@@ -15,6 +16,8 @@ from .object_builders import (
 )
 
 __all__ = [
+    'AnalysisResult',
+    'analyze_duplicate_objects',
     'extract_data_references',
     'copy_object_data',
     'BaseObjectBuilder',
