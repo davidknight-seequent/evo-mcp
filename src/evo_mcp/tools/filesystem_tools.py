@@ -17,12 +17,12 @@ import os
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
+
 import pandas as pd
 from fastmcp import Context
 from fastmcp.utilities.logging import get_logger
 
 from evo_mcp.logging_utils import log_handled_failure, log_operation_event, result_with_operation_id
-
 
 logger = get_logger(__name__)
 
@@ -50,10 +50,10 @@ def register_filesystem_tools(mcp):
         ctx: Context | None = None,
     ) -> dict:
         """Get or set the local data directory configuration.
-        
+
         The data directory is where local CSV/data files are stored for import.
         Can be set via EVO_LOCAL_DATA_DIR environment variable.
-        
+
         Args:
             directory_path: New directory path to configure (leave empty to just check current)
         """
@@ -140,7 +140,7 @@ def register_filesystem_tools(mcp):
         ctx: Context | None = None,
     ) -> dict:
         """List data files in the configured local data directory.
-        
+
         Args:
             file_pattern: Glob pattern for files (default: *.csv)
             recursive: Search subdirectories (default: True)
@@ -186,13 +186,15 @@ def register_filesystem_tools(mcp):
             file_info = []
             for f in files:
                 stat = f.stat()
-                file_info.append({
-                    "path": str(f),
-                    "relative_path": str(f.relative_to(data_dir)),
-                    "name": f.name,
-                    "size_bytes": stat.st_size,
-                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                })
+                file_info.append(
+                    {
+                        "path": str(f),
+                        "relative_path": str(f.relative_to(data_dir)),
+                        "name": f.name,
+                        "size_bytes": stat.st_size,
+                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    }
+                )
 
             if ctx:
                 await ctx.report_progress(progress=100, total=100)
@@ -236,7 +238,7 @@ def register_filesystem_tools(mcp):
         ctx: Context | None = None,
     ) -> dict:
         """Preview contents of a CSV file.
-        
+
         Args:
             file_path: Path to CSV file (absolute or relative to data directory)
             max_rows: Maximum rows to preview
@@ -327,7 +329,10 @@ def register_filesystem_tools(mcp):
                 file_path=str(file_path_obj),
                 max_rows=max_rows,
             )
-            return result_with_operation_id(operation_id, {
-                "error": str(e),
-                "status": "parse_error",
-            })
+            return result_with_operation_id(
+                operation_id,
+                {
+                    "error": str(e),
+                    "status": "parse_error",
+                },
+            )

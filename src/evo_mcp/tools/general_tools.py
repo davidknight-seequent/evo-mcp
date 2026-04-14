@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 from fastmcp import Context
 from fastmcp.utilities.logging import get_logger
 
-from evo_mcp.context import evo_context, ensure_initialized
+from evo_mcp.context import ensure_initialized, evo_context
 from evo_mcp.logging_utils import log_handled_failure, log_operation_event, operation_extra, result_with_operation_id
 
 logger = get_logger(__name__)
@@ -19,14 +19,14 @@ logger = get_logger(__name__)
 
 def register_general_tools(mcp):
     """Register all general tools with the FastMCP server."""
-    
+
     @mcp.tool()
     async def workspace_health_check(
         workspace_id: str = "",
         ctx: Context | None = None,
     ) -> dict:
         """Check health status of Evo services.
-        
+
         Args:
             workspace_id: Workspace UUID to check object service (optional)
         """
@@ -84,7 +84,7 @@ def register_general_tools(mcp):
         ctx: Context | None = None,
     ) -> list[dict]:
         """List workspaces with optional filtering by name or deleted status.
-        
+
         Args:
             name: Filter by workspace name (leave empty for no filter)
             deleted: Include deleted workspaces
@@ -187,7 +187,7 @@ def register_general_tools(mcp):
         ctx: Context | None = None,
     ) -> dict:
         """Get workspace details by ID or name.
-        
+
         Args:
             workspace_id: Workspace UUID (provide either this or workspace_name)
             workspace_name: Workspace name (provide either this or workspace_id)
@@ -247,7 +247,7 @@ def register_general_tools(mcp):
                 workspace_name=workspace_name or None,
             )
             raise
-    
+
     @mcp.tool()
     async def list_objects(
         workspace_id: str,
@@ -257,7 +257,7 @@ def register_general_tools(mcp):
         ctx: Context | None = None,
     ) -> list[dict]:
         """List objects in a workspace with optional filtering.
-        
+
         Args:
             workspace_id: Workspace UUID
             schema_id: Filter by schema/object type (leave empty for no filter)
@@ -277,29 +277,29 @@ def register_general_tools(mcp):
                     limit=limit,
                 ),
             )
-        
+
         try:
             if ctx:
                 await ctx.debug("Initializing Evo context")
             await ensure_initialized()
             if ctx:
                 await ctx.debug("Evo context initialized")
-            
+
             if ctx:
                 await ctx.debug("Getting object client", extra=operation_extra(operation_id, workspace_id=workspace_id))
             object_client = await evo_context.get_object_client(UUID(workspace_id))
-            
+
             service_health = await object_client.get_service_health()
             service_health.raise_for_status()
             if ctx:
                 await ctx.debug("Object client health check passed")
-            
+
             if ctx:
                 await ctx.debug("Fetching objects from service")
             objects = await object_client.list_objects(
                 schema_id=None,
                 deleted=deleted,
-                limit=limit
+                limit=limit,
             )
 
             if ctx:
@@ -307,7 +307,7 @@ def register_general_tools(mcp):
                     "Received objects from service",
                     extra=operation_extra(operation_id, count=len(objects.items())),
                 )
-            
+
             result = [
                 {
                     "operation_id": operation_id,
@@ -320,7 +320,7 @@ def register_general_tools(mcp):
                     "created_by": obj.created_by,
                     "modified_at": obj.modified_at,
                     "modified_by": obj.modified_by,
-                    "stage": obj.stage
+                    "stage": obj.stage,
                 }
                 for obj in objects.items()
             ]
@@ -330,7 +330,7 @@ def register_general_tools(mcp):
                     extra=operation_extra(operation_id, returned_count=len(result)),
                 )
             return result
-            
+
         except Exception as e:
             await log_handled_failure(
                 ctx,
@@ -354,7 +354,7 @@ def register_general_tools(mcp):
         ctx: Context | None = None,
     ) -> dict:
         """Get object metadata by ID or path.
-        
+
         Args:
             workspace_id: Workspace UUID
             object_id: Object UUID (provide either this or object_path)
@@ -419,7 +419,6 @@ def register_general_tools(mcp):
                 version=version or None,
             )
             raise
-
 
     @mcp.tool()
     async def list_my_instances(
@@ -505,11 +504,14 @@ def register_general_tools(mcp):
                         instance_id=str(instance.id),
                         instance_name=instance.display_name,
                     )
-                    return result_with_operation_id(operation_id, {
-                        "id": str(instance.id),
-                        "name": instance.display_name,
-                        "hub_urls": [hub.url for hub in instance.hubs],
-                    })
+                    return result_with_operation_id(
+                        operation_id,
+                        {
+                            "id": str(instance.id),
+                            "name": instance.display_name,
+                            "hub_urls": [hub.url for hub in instance.hubs],
+                        },
+                    )
 
             raise ValueError(
                 f"No instance found for parameters {instance_id=} {instance_name=}. "

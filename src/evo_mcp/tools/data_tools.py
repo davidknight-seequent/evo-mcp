@@ -8,19 +8,20 @@ MCP tools for object management operations.
 
 import json
 from uuid import UUID, uuid4
+
 from fastmcp import Context
 from fastmcp.utilities.logging import get_logger
 
-from evo_mcp.context import evo_context, ensure_initialized
+from evo_mcp.context import ensure_initialized, evo_context
 from evo_mcp.logging_utils import log_handled_failure, log_operation_event, result_with_operation_id
-from evo_mcp.utils.evo_data_utils import extract_data_references
+from evo_mcp.utils.evo_data_utils import extract_data_references as extract_object_data_references
 
 logger = get_logger(__name__)
 
 
 def register_data_tools(mcp):
     """Register all object-related tools with the FastMCP server."""
-    
+
     @mcp.tool()
     async def create_object(
         workspace_id: str,
@@ -29,7 +30,7 @@ def register_data_tools(mcp):
         ctx: Context | None = None,
     ) -> dict:
         """Create a new object in a workspace.
-        
+
         Args:
             workspace_id: Workspace UUID
             path: Object path
@@ -84,7 +85,7 @@ def register_data_tools(mcp):
                 path=path,
             )
             raise
-    
+
     @mcp.tool()
     async def get_object_content(
         workspace_id: str,
@@ -94,7 +95,7 @@ def register_data_tools(mcp):
         ctx: Context | None = None,
     ) -> dict:
         """Download complete object definition as JSON.
-        
+
         Args:
             workspace_id: Workspace UUID
             object_id: Object UUID (provide either this or object_path)
@@ -131,7 +132,7 @@ def register_data_tools(mcp):
                     "schema_id": obj.metadata.schema_id.sub_classification,
                     "version_id": obj.metadata.version_id,
                 },
-                "content": obj.as_dict()
+                "content": obj.as_dict(),
             }
 
             await log_operation_event(
@@ -157,7 +158,6 @@ def register_data_tools(mcp):
             )
             raise
 
-
     @mcp.tool()
     async def get_object_versions(
         workspace_id: str,
@@ -166,7 +166,7 @@ def register_data_tools(mcp):
         ctx: Context | None = None,
     ) -> list[dict]:
         """List all versions of an object.
-        
+
         Args:
             workspace_id: Workspace UUID
             object_id: Object UUID (provide either this or object_path)
@@ -233,7 +233,7 @@ def register_data_tools(mcp):
         ctx: Context | None = None,
     ) -> list[str]:
         """Extract all data blob references from an object.
-        
+
         Args:
             workspace_id: Workspace UUID
             object_id: Object UUID
@@ -254,7 +254,7 @@ def register_data_tools(mcp):
             object_client = await evo_context.get_object_client(UUID(workspace_id))
 
             obj = await object_client.download_object_by_id(UUID(object_id), version=version if version else None)
-            data_refs = extract_data_references(obj.as_dict())
+            data_refs = extract_object_data_references(obj.as_dict())
 
             await log_operation_event(
                 ctx,
