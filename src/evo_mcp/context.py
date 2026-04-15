@@ -47,6 +47,16 @@ elif os.environ.get("DEBUG") == "1":
 else:
     _context_log_level = "INFO"
 
+_valid_log_levels = {
+    "CRITICAL",
+    "ERROR",
+    "WARNING",
+    "INFO",
+    "DEBUG",
+    "NOTSET",
+}
+if _context_log_level not in _valid_log_levels:
+    _context_log_level = "INFO"
 logger.setLevel(_context_log_level)
 
 
