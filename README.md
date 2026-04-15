@@ -431,9 +431,13 @@ The server will start listening on `http://localhost:5000/mcp`.
 
 **Access tools using FastMCP CLI:**
 
+If you installed with `uv`, run these commands as `uv run fastmcp ...`. If you installed into an active virtual environment with `pip install -e .`, run `fastmcp ...` directly instead.
+
 For simple arguments, prefer `key=value` parameters; use `--input-json` for more complex or nested inputs.
 
 ```bash
+# Use either `uv run fastmcp ...` or `fastmcp ...`, depending on your installation method.
+
 # 1) List available tools on the server
 uv run fastmcp list http://localhost:5000/mcp --transport http
 
