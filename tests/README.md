@@ -75,18 +75,21 @@ This directory contains automated tests for the Evo MCP server.
 
 - `integration/test_live_list_workspaces.py`: Read-only smoke test for live Evo connectivity.
 	- Requires `RUN_EVO_LIVE_TESTS=1` plus the Evo auth environment variables documented below.
+	- Requires `EVO_TEST_INSTANCE_ID` so the test always targets the same Evo instance.
 	- Calls `ensure_initialized()` and then checks that `workspace_client.list_workspaces()` returns objects with basic expected fields.
 	- This is intentionally a minimal live test that validates authentication and a simple workspace listing flow without mutating server state.
 
 - `integration/test_live_general_tools.py`: Additional read-only live coverage for the general MCP tools.
+	- Requires `EVO_TEST_INSTANCE_ID` and `EVO_TEST_WORKSPACE_ID` for deterministic selection.
 	- Verifies live workspace-service health checks.
 	- Verifies instance discovery via `list_my_instances`.
 	- Verifies workspace lookup by ID using a real accessible workspace.
 	- Verifies object listing for a real workspace.
-	- Verifies object metadata lookup by path when the selected workspace contains at least one object.
-	- These tests remain opt-in and skip gracefully when the account has no accessible workspaces or no objects in the selected workspace.
+	- Verifies object metadata lookup by path when `EVO_TEST_OBJECT_PATH` is set to a known accessible object path.
+	- These tests remain opt-in and skip gracefully when the deterministic selection env vars are not set.
 
 - `integration/test_live_admin_tools.py`: Read-only live coverage for safe admin-tool flows.
+	- Requires `EVO_TEST_INSTANCE_ID` and `EVO_TEST_WORKSPACE_ID` for deterministic selection.
 	- Verifies workspace summary aggregation against a real workspace.
 	- Verifies snapshot generation without blob expansion for a real workspace.
 	- Avoids mutating admin operations such as workspace creation, copying, or duplication.
@@ -132,20 +135,20 @@ Integration tests are intentionally opt-in.
 
 Instance and workspace selection for the live tests:
 
-- The live tests do not read an instance from a test fixture file.
-- On first `ensure_initialized()`, `evo_context` selects the first organization returned by Evo discovery if there is no cached instance selection.
-- The selected `org_id` and `hub_url` are then cached in `.cache/variables.json` and reused by later test runs.
-- The workspace-based live tests then use the first accessible workspace returned by `workspace_client.list_workspaces(limit=5)`.
+- The live tests require explicit selection env vars.
+- `EVO_TEST_INSTANCE_ID` identifies the Evo instance to use for the live run.
+- `EVO_TEST_WORKSPACE_ID` identifies the workspace used by workspace-scoped live tests.
+- `EVO_TEST_OBJECT_PATH` identifies the object path used by the live `get_object_by_path` test.
+- The helper in `tests/integration/live_test_support.py` always switches `evo_context` to `EVO_TEST_INSTANCE_ID`.
 
 If you hit permission errors or unexpected workspaces:
 
-- Clear `.cache/variables.json` to force a fresh discovery-based instance selection on the next run.
-- Confirm that the authenticated account has access to the selected instance and at least one readable workspace there.
-- Some live tests intentionally skip when the selected instance has no accessible workspaces or no objects in the chosen workspace.
+- Confirm that the authenticated account has access to `EVO_TEST_INSTANCE_ID` and `EVO_TEST_WORKSPACE_ID`.
+- Check that `EVO_TEST_OBJECT_PATH` exists in the configured workspace and is readable by the same account.
 
 Known SDK caveat:
 
-- The `test_live_get_object_by_path_when_workspace_has_objects` case in `integration/test_live_general_tools.py` can fail due to current Evo SDK path normalization behavior when an object path like `object.json` is normalized to `./object.json`. This is a false-negative risk in the SDK path handling rather than a required server-side write capability.
+- The `test_live_get_object_by_path_when_workspace_has_objects` case in `integration/test_live_general_tools.py` can fail due to current Evo SDK path normalization behavior when an object path like `object.json` is normalized to `./object.json`. Set `EVO_TEST_OBJECT_PATH` to the exact path returned by a successful object listing in the target workspace. This remains a false-negative risk in SDK path handling rather than a required server-side write capability.
 
 To run them, set:
 
@@ -153,11 +156,20 @@ To run them, set:
 - `EVO_CLIENT_ID`
 - `EVO_REDIRECT_URL`
 - `EVO_DISCOVERY_URL`
+- `EVO_TEST_INSTANCE_ID`
+- `EVO_TEST_WORKSPACE_ID`
+
+For the path-based object metadata test, also set:
+
+- `EVO_TEST_OBJECT_PATH`
 
 Example:
 
 ```bash
-RUN_EVO_LIVE_TESTS=1 uv run python -m pytest -q -m integration
+RUN_EVO_LIVE_TESTS=1 \
+EVO_TEST_INSTANCE_ID=00000000-0000-0000-0000-000000000000 \
+EVO_TEST_WORKSPACE_ID=11111111-1111-1111-1111-111111111111 \
+uv run python -m pytest -q -m integration
 ```
 
 ## CI workflows

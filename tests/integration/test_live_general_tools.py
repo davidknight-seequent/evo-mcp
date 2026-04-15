@@ -10,41 +10,22 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from evo_mcp.context import ensure_initialized, evo_context
+from evo_mcp.context import evo_context
 from evo_mcp.tools.general_tools import register_general_tools
+from tests.integration.live_test_support import (
+    ensure_deterministic_live_context,
+    get_required_object_path,
+    get_required_workspace,
+)
 from tests.helpers import FakeMCP
-
-_REQUIRED_ENV_VARS = [
-    "EVO_CLIENT_ID",
-    "EVO_REDIRECT_URL",
-    "EVO_DISCOVERY_URL",
-]
-
-
-def _require_live_env() -> None:
-    if os.getenv("RUN_EVO_LIVE_TESTS") != "1":
-        pytest.skip("Set RUN_EVO_LIVE_TESTS=1 to run live Evo integration tests")
-
-    missing = [name for name in _REQUIRED_ENV_VARS if not os.getenv(name)]
-    if missing:
-        pytest.skip(f"Missing required environment variables: {', '.join(missing)}")
 
 
 async def _get_general_tools() -> FakeMCP:
-    _require_live_env()
-    await ensure_initialized()
+    await ensure_deterministic_live_context()
 
     mcp = FakeMCP()
     register_general_tools(mcp)
     return mcp
-
-
-async def _get_first_workspace():
-    page = await evo_context.workspace_client.list_workspaces(limit=5)
-    workspaces = page.items()
-    if not workspaces:
-        pytest.skip("No accessible workspaces were returned for this account")
-    return workspaces[0]
 
 
 @pytest.mark.integration
@@ -80,7 +61,7 @@ async def test_live_list_my_instances_read_only():
 async def test_live_get_workspace_by_id_read_only():
     """Given an accessible workspace, when fetched by ID, then the mapped workspace metadata is returned."""
     mcp = await _get_general_tools()
-    workspace = await _get_first_workspace()
+    workspace = await get_required_workspace()
 
     tool = mcp.tools["get_workspace"]
     result = await tool(workspace_id=str(workspace.id))
@@ -95,7 +76,7 @@ async def test_live_get_workspace_by_id_read_only():
 async def test_live_list_objects_read_only_for_first_workspace():
     """Given an accessible workspace, when objects are listed, then a read-only object listing response is returned."""
     mcp = await _get_general_tools()
-    workspace = await _get_first_workspace()
+    workspace = await get_required_workspace()
 
     tool = mcp.tools["list_objects"]
     result = await tool(workspace_id=str(workspace.id), limit=5)
@@ -110,22 +91,18 @@ async def test_live_list_objects_read_only_for_first_workspace():
 
 @pytest.mark.integration
 async def test_live_get_object_by_path_when_workspace_has_objects():
-    """Given a workspace with at least one object, when fetched by path, then object metadata is returned."""
+    """Given a configured workspace and object path, when fetched by path, then object metadata is returned."""
     mcp = await _get_general_tools()
-    workspace = await _get_first_workspace()
-
-    list_objects = mcp.tools["list_objects"]
-    objects = await list_objects(workspace_id=str(workspace.id), limit=5)
-    if not objects:
-        pytest.skip("No objects were returned for the selected workspace")
+    workspace = await get_required_workspace()
+    object_path = get_required_object_path()
 
     get_object = mcp.tools["get_object"]
     result = await get_object(
         workspace_id=str(workspace.id),
-        object_path=objects[0]["path"],
+        object_path=object_path,
     )
 
     assert result["id"]
     assert result["name"]
-    assert result["path"] == objects[0]["path"]
+    assert result["path"] == object_path
     assert "schema_id" in result
