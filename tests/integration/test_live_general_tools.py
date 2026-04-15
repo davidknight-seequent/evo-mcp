@@ -4,20 +4,18 @@
 
 from __future__ import annotations
 
-import os
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
-from evo_mcp.context import evo_context
 from evo_mcp.tools.general_tools import register_general_tools
+from tests.helpers import FakeMCP
 from tests.integration.live_test_support import (
     ensure_deterministic_live_context,
     get_required_object_path,
     get_required_workspace,
 )
-from tests.helpers import FakeMCP
 
 
 async def _get_general_tools() -> FakeMCP:

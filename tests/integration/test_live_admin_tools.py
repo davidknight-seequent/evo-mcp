@@ -7,8 +7,8 @@ from __future__ import annotations
 import pytest
 
 from evo_mcp.tools.admin_tools import register_admin_tools
-from tests.integration.live_test_support import ensure_deterministic_live_context, get_required_workspace
 from tests.helpers import FakeMCP
+from tests.integration.live_test_support import ensure_deterministic_live_context, get_required_workspace
 
 
 async def _get_admin_tools() -> FakeMCP:
