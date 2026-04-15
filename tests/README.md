@@ -15,61 +15,61 @@ This directory contains automated tests for the Evo MCP server.
 
 - `conftest.py`: Adds `src/` to `sys.path` so tests can import the project modules without installing the package into the active environment.
 - `helpers.py`: Contains light-weight test doubles used across the suite.
-	- `FakeMCP` records functions decorated with `@mcp.tool()` so tests can call registered tools directly.
-	- `FakePage` mimics the SDK paging interface used by methods that return an object with an `.items()` method and supports `len(page)`.
+  - `FakeMCP` records functions decorated with `@mcp.tool()` so tests can call registered tools directly.
+  - `FakePage` mimics the SDK paging interface used by methods that return an object with an `.items()` method and supports `len(page)`.
 
 ### Unit tests
 
 - `unit/test_context_cache.py`: Covers the `EvoContext` cache helpers.
-	- Verifies `save_variables_to_cache()` and `load_variables_from_cache()` round-trip cached instance state.
-	- Verifies `get_access_token_from_cache()` returns a valid JWT and rejects an expired JWT.
-	- These tests stay local to a temporary directory and do not perform OAuth or network calls.
+  - Verifies `save_variables_to_cache()` and `load_variables_from_cache()` round-trip cached instance state.
+  - Verifies `get_access_token_from_cache()` returns a valid JWT and rejects an expired JWT.
+  - These tests stay local to a temporary directory and do not perform OAuth or network calls.
 
 - `unit/test_admin_tools.py`: Covers the workspace-management MCP tools in `admin_tools.py`.
-	- Verifies workspace creation response mapping.
-	- Verifies workspace summary schema counting.
-	- Verifies workspace snapshot generation, including optional blob reference collection and download-failure fallback.
-	- Verifies object copy behavior, including blob copy orchestration and UUID clearing before create.
-	- Verifies whole-workspace duplication filters objects correctly and tracks copy failures.
+  - Verifies workspace creation response mapping.
+  - Verifies workspace summary schema counting.
+  - Verifies workspace snapshot generation, including optional blob reference collection and download-failure fallback.
+  - Verifies object copy behavior, including blob copy orchestration and UUID clearing before create.
+  - Verifies whole-workspace duplication filters objects correctly and tracks copy failures.
 
 - `unit/test_filesystem_tools.py`: Covers the local CSV/data directory tools in `filesystem_tools.py`.
-	- Exercises invalid directory configuration handling.
-	- Verifies recursive file discovery under `EVO_LOCAL_DATA_DIR`.
-	- Verifies CSV preview metadata, sample row generation, and missing-file handling.
+  - Exercises invalid directory configuration handling.
+  - Verifies recursive file discovery under `EVO_LOCAL_DATA_DIR`.
+  - Verifies CSV preview metadata, sample row generation, and missing-file handling.
 
 - `unit/test_general_tools.py`: Covers selected workspace and instance management behaviors in `general_tools.py`.
-	- Verifies `get_workspace` rejects missing identifiers.
-	- Verifies workspace lookup by name raises a clear error when no match exists.
-	- Verifies `list_workspaces` maps SDK models into the tool response shape.
-	- Verifies `select_instance` switches the active instance using discovery results.
-	- These tests use `AsyncMock` and `SimpleNamespace` instead of live SDK clients.
+  - Verifies `get_workspace` rejects missing identifiers.
+  - Verifies workspace lookup by name raises a clear error when no match exists.
+  - Verifies `list_workspaces` maps SDK models into the tool response shape.
+  - Verifies `select_instance` switches the active instance using discovery results.
+  - These tests use `AsyncMock` and `SimpleNamespace` instead of live SDK clients.
 
 - `unit/test_instance_users_admin_tools.py`: Covers the instance-user admin MCP tools in `instance_users_admin_tools.py`.
-	- Verifies paged user listing respects the requested `count` limit and maps user records into tool responses.
-	- Verifies instance role listing passthrough.
-	- Verifies add-user responses are mapped into invitation and member email lists.
-	- Verifies remove-user and update-role operations call the workspace client with the expected arguments.
-	- Verifies these tools fail clearly when no instance is selected.
+  - Verifies paged user listing respects the requested `count` limit and maps user records into tool responses.
+  - Verifies instance role listing passthrough.
+  - Verifies add-user responses are mapped into invitation and member email lists.
+  - Verifies remove-user and update-role operations call the workspace client with the expected arguments.
+  - Verifies these tools fail clearly when no instance is selected.
 
 - `unit/test_object_build_tools_dry_run.py`: Covers dry-run validation paths for the object builder tools.
-	- `build_and_create_pointset`: success path and missing required coordinate columns.
-	- `build_and_create_line_segments`: success path and invalid segment index validation.
-	- `build_and_create_downhole_collection`: success path and invalid interval-file configuration.
-	- `build_and_create_downhole_intervals`: success path and missing required midpoint column.
-	- The tests intentionally stop at `dry_run=True`, so they validate CSV parsing and input checks without creating Evo objects or uploading data.
+  - `build_and_create_pointset`: success path and missing required coordinate columns.
+  - `build_and_create_line_segments`: success path and invalid segment index validation.
+  - `build_and_create_downhole_collection`: success path and invalid interval-file configuration.
+  - `build_and_create_downhole_intervals`: success path and missing required midpoint column.
+  - The tests intentionally stop at `dry_run=True`, so they validate CSV parsing and input checks without creating Evo objects or uploading data.
 
 - `unit/test_setup_mcp.py`: Covers the interactive setup script helpers in `scripts/setup_mcp.py`.
-	- Verifies `.env` parsing and writing behavior.
-	- Verifies HTTP startup env validation and project-relative command resolution.
-	- Verifies generated MCP client config entries for VS Code and Cursor.
-	- Verifies WSL-specific VS Code config directory resolution prefers the VS Code server path.
-	- Verifies `setup_mcp_config()` accepts an existing empty `mcp.json` and writes a valid Evo MCP config.
+  - Verifies `.env` parsing and writing behavior.
+  - Verifies HTTP startup env validation and project-relative command resolution.
+  - Verifies generated MCP client config entries for VS Code and Cursor.
+  - Verifies WSL-specific VS Code config directory resolution prefers the VS Code server path.
+  - Verifies `setup_mcp_config()` accepts an existing empty `mcp.json` and writes a valid Evo MCP config.
 
 - `unit/test_server_bootstrap.py`: Covers MCP server bootstrap and conditional registration in `mcp_tools.py`.
-	- Verifies invalid `MCP_TRANSPORT` falls back to `stdio`.
-	- Verifies invalid `MCP_TOOL_FILTER` falls back to `all`.
-	- Verifies `all`, `admin`, and `data` modes register the expected tools, prompts, and shared schema resource.
-	- These tests import `mcp_tools` repeatedly with different environment settings and inspect FastMCP registrations through its listing APIs.
+  - Verifies invalid `MCP_TRANSPORT` falls back to `stdio`.
+  - Verifies invalid `MCP_TOOL_FILTER` falls back to `all`.
+  - Verifies `all`, `admin`, and `data` modes register the expected tools, prompts, and shared schema resource.
+  - These tests import `mcp_tools` repeatedly with different environment settings and inspect FastMCP registrations through its listing APIs.
 
 ### Integration tests
 
