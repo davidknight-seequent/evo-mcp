@@ -14,10 +14,10 @@ import json
 import logging
 import re
 from collections import defaultdict
-from uuid import UUID
 from datetime import datetime, timezone
 from itertools import combinations
 from typing import Any, Awaitable, Callable
+from uuid import UUID
 
 import aiohttp
 import pyarrow as pa
@@ -27,10 +27,9 @@ from evo.common.data import Environment
 from evo.objects import ObjectAPIClient
 from evo.workspaces import WorkspaceAPIClient
 
-from evo_mcp.context import evo_context, ensure_initialized
+from evo_mcp.context import ensure_initialized, evo_context
 from evo_mcp.utils.downloaded_object_utils import downloaded_object_data_links
-from evo_mcp.utils.evo_data_utils import extract_data_references, copy_object_data
-
+from evo_mcp.utils.evo_data_utils import copy_object_data, extract_data_references
 
 logger = logging.getLogger(__name__)
 
@@ -112,12 +111,7 @@ async def _list_all_pages(
 def _fmt_user(user: Any) -> str:
     if user is None:
         return "unknown"
-    return (
-        getattr(user, "name", None)
-        or getattr(user, "display_name", None)
-        or getattr(user, "id", None)
-        or "unknown"
-    )
+    return getattr(user, "name", None) or getattr(user, "display_name", None) or getattr(user, "id", None) or "unknown"
 
 
 def _fmt_dt(value: Any) -> str:
@@ -282,7 +276,9 @@ async def _run_duplicate_analysis(
         ws_error_count = sum(1 for result in scanned if result["scan_error"])
         total_objects += ws_object_count
         total_errors += ws_error_count
-        workspace_stats.append({"name": ws_name, "id": str(workspace.id), "objects": ws_object_count, "errors": ws_error_count})
+        workspace_stats.append(
+            {"name": ws_name, "id": str(workspace.id), "objects": ws_object_count, "errors": ws_error_count}
+        )
 
         for record in scanned:
             obj_key = (record["workspace_id"], record["object_id"])
@@ -329,47 +325,47 @@ async def _run_duplicate_analysis(
     unique_blob_count = len(blob_index)
 
     rows: list[dict[str, Any]] = []
-    for (left_key, right_key), shared in sorted(
-        pair_counts.items(), key=lambda item: (-item[1], item[0])
-    ):
+    for (left_key, right_key), shared in sorted(pair_counts.items(), key=lambda item: (-item[1], item[0])):
         left = object_lookup.get(left_key, {})
         right = object_lookup.get(right_key, {})
         left_total = object_blob_counts.get(left_key, 0)
         right_total = object_blob_counts.get(right_key, 0)
-        rows.append({
-            "object_1_workspace": left.get("workspace_name", "unknown"),
-            "object_1_workspace_id": left.get("workspace_id", ""),
-            "object_1_name": _clean_object_name(left),
-            "object_1_id": left.get("object_id", ""),
-            "object_1_path": left.get("object_path", ""),
-            "object_1_version_id": left.get("version_id", ""),
-            "object_1_schema": _fmt_object_schema(left),
-            "object_1_blobs": left_total,
-            "object_1_created_by": left.get("created_by", "unknown"),
-            "object_1_created_at": left.get("created_at", "unknown"),
-            "object_2_workspace": right.get("workspace_name", "unknown"),
-            "object_2_workspace_id": right.get("workspace_id", ""),
-            "object_2_name": _clean_object_name(right),
-            "object_2_id": right.get("object_id", ""),
-            "object_2_path": right.get("object_path", ""),
-            "object_2_version_id": right.get("version_id", ""),
-            "object_2_schema": _fmt_object_schema(right),
-            "object_2_blobs": right_total,
-            "object_2_created_by": right.get("created_by", "unknown"),
-            "object_2_created_at": right.get("created_at", "unknown"),
-            "shared_blobs": shared,
-            "blob_overlap_pct": _fmt_overlap_pct(shared, left_total, right_total),
-            "compare_inputs": {
-                "left_instance_id": str(org_id),
-                "left_workspace_id": left.get("workspace_id", ""),
-                "left_object_id": left.get("object_id", ""),
-                "left_version": left.get("version_id", ""),
-                "right_instance_id": str(org_id),
-                "right_workspace_id": right.get("workspace_id", ""),
-                "right_object_id": right.get("object_id", ""),
-                "right_version": right.get("version_id", ""),
-            },
-        })
+        rows.append(
+            {
+                "object_1_workspace": left.get("workspace_name", "unknown"),
+                "object_1_workspace_id": left.get("workspace_id", ""),
+                "object_1_name": _clean_object_name(left),
+                "object_1_id": left.get("object_id", ""),
+                "object_1_path": left.get("object_path", ""),
+                "object_1_version_id": left.get("version_id", ""),
+                "object_1_schema": _fmt_object_schema(left),
+                "object_1_blobs": left_total,
+                "object_1_created_by": left.get("created_by", "unknown"),
+                "object_1_created_at": left.get("created_at", "unknown"),
+                "object_2_workspace": right.get("workspace_name", "unknown"),
+                "object_2_workspace_id": right.get("workspace_id", ""),
+                "object_2_name": _clean_object_name(right),
+                "object_2_id": right.get("object_id", ""),
+                "object_2_path": right.get("object_path", ""),
+                "object_2_version_id": right.get("version_id", ""),
+                "object_2_schema": _fmt_object_schema(right),
+                "object_2_blobs": right_total,
+                "object_2_created_by": right.get("created_by", "unknown"),
+                "object_2_created_at": right.get("created_at", "unknown"),
+                "shared_blobs": shared,
+                "blob_overlap_pct": _fmt_overlap_pct(shared, left_total, right_total),
+                "compare_inputs": {
+                    "left_instance_id": str(org_id),
+                    "left_workspace_id": left.get("workspace_id", ""),
+                    "left_object_id": left.get("object_id", ""),
+                    "left_version": left.get("version_id", ""),
+                    "right_instance_id": str(org_id),
+                    "right_workspace_id": right.get("workspace_id", ""),
+                    "right_object_id": right.get("object_id", ""),
+                    "right_version": right.get("version_id", ""),
+                },
+            }
+        )
 
     rows.sort(key=lambda row: (-_parse_pct(row["blob_overlap_pct"]), -row["shared_blobs"]))
 
@@ -441,7 +437,9 @@ def _flatten_json(value: Any, *, path: str = "$", out: dict[str, Any] | None = N
     return out
 
 
-def _collect_crs_candidates(value: Any, *, path: str = "$", out: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+def _collect_crs_candidates(
+    value: Any, *, path: str = "$", out: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
     if out is None:
         out = []
 
@@ -468,7 +466,9 @@ def _collect_crs_candidates(value: Any, *, path: str = "$", out: list[dict[str, 
     return out
 
 
-def _compare_json_payloads(left_payload: dict[str, Any], right_payload: dict[str, Any], *, max_differences: int) -> dict[str, Any]:
+def _compare_json_payloads(
+    left_payload: dict[str, Any], right_payload: dict[str, Any], *, max_differences: int
+) -> dict[str, Any]:
     left_flat = _flatten_json(left_payload)
     right_flat = _flatten_json(right_payload)
 
@@ -594,7 +594,8 @@ def _compare_parquet_metadata(left_files: list[dict[str, Any]], right_files: lis
         shared_blob_comparisons.append(
             {
                 "blob_name": blob_name,
-                "same_parquet_format_version": left_item.get("parquet_format_version") == right_item.get("parquet_format_version"),
+                "same_parquet_format_version": left_item.get("parquet_format_version")
+                == right_item.get("parquet_format_version"),
                 "same_arrow_schema": left_item.get("arrow_schema") == right_item.get("arrow_schema"),
                 "same_row_count": left_item.get("num_rows") == right_item.get("num_rows"),
                 "same_row_group_count": left_item.get("num_row_groups") == right_item.get("num_row_groups"),
@@ -608,7 +609,8 @@ def _compare_parquet_metadata(left_files: list[dict[str, Any]], right_files: lis
                 "index": index,
                 "left_blob_name": left_item.get("blob_name"),
                 "right_blob_name": right_item.get("blob_name"),
-                "same_parquet_format_version": left_item.get("parquet_format_version") == right_item.get("parquet_format_version"),
+                "same_parquet_format_version": left_item.get("parquet_format_version")
+                == right_item.get("parquet_format_version"),
                 "same_arrow_schema": left_item.get("arrow_schema") == right_item.get("arrow_schema"),
                 "same_row_count": left_item.get("num_rows") == right_item.get("num_rows"),
             }
@@ -665,9 +667,7 @@ async def _resolve_instance(
                 "hub_url": instance.hubs[0].url,
             }
 
-    raise ValueError(
-        f"Could not resolve instance for instance_id={instance_id!r}, instance_name={instance_name!r}."
-    )
+    raise ValueError(f"Could not resolve instance for instance_id={instance_id!r}, instance_name={instance_name!r}.")
 
 
 async def _resolve_workspace(
@@ -767,28 +767,20 @@ async def _resolve_object_side(
 
 def register_admin_tools(mcp):
     """Register all workspace-related tools with the FastMCP server."""
-    
+
     @mcp.tool()
-    async def create_workspace(
-        name: str,
-        description: str = "",
-        labels: list[str] = []
-    ) -> dict:
+    async def create_workspace(name: str, description: str = "", labels: list[str] = []) -> dict:
         """Create a new workspace.
-        
+
         Args:
             name: Workspace name
             description: Workspace description
             labels: Workspace labels (optional list)
         """
-        await ensure_initialized()
-        
         workspace = await evo_context.workspace_client.create_workspace(
-            name=name,
-            description=description,
-            labels=labels or []
+            name=name, description=description, labels=labels or []
         )
-        
+
         return {
             "id": str(workspace.id),
             "name": workspace.display_name,
@@ -799,74 +791,72 @@ def register_admin_tools(mcp):
     @mcp.tool()
     async def get_workspace_summary(workspace_id: str) -> dict:
         """Get summary statistics for a workspace (object counts by type and file counts by extension).
-        
+
         Args:
             workspace_id: Workspace UUID
         """
         await ensure_initialized()
         object_client = await evo_context.get_object_client(UUID(workspace_id))
         file_client = await evo_context.get_file_client(UUID(workspace_id))
-        
+
         # Get all objects
         all_objects = await object_client.list_all_objects()
-        
+
         # Count by schema type
         schema_counts = {}
         for obj in all_objects:
             schema = obj.schema_id.sub_classification
             schema_counts[schema] = schema_counts.get(schema, 0) + 1
-        
+
         # Get all files
         all_files = await file_client.list_all_files()
-        
+
         # Count files by extension
         extension_counts = {}
         for file in all_files:
             # Extract extension from filename
             name = file.name
-            if '.' in name:
-                ext = name.rsplit('.', 1)[-1].lower()
+            if "." in name:
+                ext = name.rsplit(".", 1)[-1].lower()
             else:
                 ext = "(no extension)"
             extension_counts[ext] = extension_counts.get(ext, 0) + 1
-        
+
         return {
             "workspace_id": str(workspace_id),
             "total_objects": len(all_objects),
             "objects_by_schema": schema_counts,
             "total_files": len(all_files),
-            "files_by_extension": extension_counts
+            "files_by_extension": extension_counts,
         }
 
     @mcp.tool()
     async def create_workspace_snapshot(
-        workspace_id: str,
-        snapshot_name: str = "",
-        include_data_blobs: bool = False
+        workspace_id: str, snapshot_name: str = "", include_data_blobs: bool = False
     ) -> dict:
         """Create a snapshot of all objects and their current versions in a workspace.
-        
+
         Args:
             workspace_id: Workspace UUID to snapshot
             snapshot_name: Optional name for the snapshot (defaults to timestamp)
             include_data_blobs: If True, include data blob references (increases size)
-            
+
         Returns:
             Snapshot metadata and object version information
         """
         await ensure_initialized()
         object_client = await evo_context.get_object_client(UUID(workspace_id))
         workspace = await evo_context.workspace_client.get_workspace(UUID(workspace_id))
-        
+
         # Get all objects
         all_objects = await object_client.list_all_objects()
-        
+
         # Create snapshot
         timestamp = datetime.utcnow().isoformat()
         snapshot_name = snapshot_name or f"snapshot_{timestamp}"
-        
+
         objects_snapshot = []
-        
+
         for obj in all_objects:
             obj_info = {
                 "id": str(obj.id),
@@ -877,7 +867,7 @@ def register_admin_tools(mcp):
                 "created_at": obj.created_at.isoformat() if obj.created_at else None,
                 # "updated_at": obj.updated_at.isoformat() if obj.updated_at else None
             }
-            
+
             if include_data_blobs:
                 try:
                     downloaded_obj = await object_client.download_object_by_id(obj.id, version=obj.version_id)
@@ -885,9 +875,9 @@ def register_admin_tools(mcp):
                     obj_info["data_blobs"] = data_refs
                 except Exception:
                     obj_info["data_blobs"] = []
-            
+
             objects_snapshot.append(obj_info)
-        
+
         snapshot = {
             "snapshot_name": snapshot_name,
             "snapshot_timestamp": timestamp,
@@ -895,9 +885,9 @@ def register_admin_tools(mcp):
             "workspace_name": workspace.display_name,
             "workspace_description": workspace.description,
             "object_count": len(objects_snapshot),
-            "objects": objects_snapshot
+            "objects": objects_snapshot,
         }
-        
+
         return {
             "snapshot": snapshot,
             "summary": {
@@ -906,19 +896,16 @@ def register_admin_tools(mcp):
                 "workspace_id": workspace_id,
                 "total_objects": len(objects_snapshot),
                 "note_to_user": "Store this snapshot data to restore later using evo_restore_workspace_snapshot",
-                "note_to_agent": "Display the full snapshot in your response."
-            }
+                "note_to_agent": "Display the full snapshot in your response.",
+            },
         }
 
     @mcp.tool()
     async def workspace_copy_object(
-        source_workspace_id: str,
-        target_workspace_id: str,
-        object_id: str,
-        version: str = ""
+        source_workspace_id: str, target_workspace_id: str, object_id: str, version: str = ""
     ) -> dict:
         """Copy a single object from one workspace to another, including data blobs.
-        
+
         Args:
             source_workspace_id: Source workspace UUID
             target_workspace_id: Target workspace UUID
@@ -928,30 +915,21 @@ def register_admin_tools(mcp):
         await ensure_initialized()
         source_client = await evo_context.get_object_client(UUID(source_workspace_id))
         target_client = await evo_context.get_object_client(UUID(target_workspace_id))
-        
+
         # Download source object
         source_object = await source_client.download_object_by_id(UUID(object_id), version=version if version else None)
-        
+
         # Extract and copy data blobs
         data_identifiers = extract_data_references(source_object.as_dict())
         if data_identifiers:
-            await copy_object_data(
-                source_client,
-                target_client,
-                source_object,
-                data_identifiers,
-                evo_context.connector
-            )
-        
+            await copy_object_data(source_client, target_client, source_object, data_identifiers, evo_context.connector)
+
         # Create object in target workspace
         object_dict = source_object.as_dict()
         object_dict["uuid"] = None
-        
-        new_metadata = await target_client.create_geoscience_object(
-            source_object.metadata.path,
-            object_dict
-        )
-        
+
+        new_metadata = await target_client.create_geoscience_object(source_object.metadata.path, object_dict)
+
         return {
             "id": str(new_metadata.id),
             "name": new_metadata.name,
@@ -966,10 +944,10 @@ def register_admin_tools(mcp):
         target_name: str,
         target_description: str = "",
         schema_filter: list[str] = [],
-        name_filter: list[str] = []
+        name_filter: list[str] = [],
     ) -> dict:
         """Duplicate entire workspace (all objects and data blobs).
-        
+
         Args:
             source_workspace_id: Source workspace UUID
             target_name: Target workspace name
@@ -978,68 +956,58 @@ def register_admin_tools(mcp):
             name_filter: Filter by object names (optional list)
         """
         await ensure_initialized()
-        
+
         # Create target workspace
         target_workspace = await evo_context.workspace_client.create_workspace(
-            name=target_name,
-            description=target_description or "Duplicated workspace"
+            name=target_name, description=target_description or "Duplicated workspace"
         )
-        
+
         source_client = await evo_context.get_object_client(UUID(source_workspace_id))
         target_client = await evo_context.get_object_client(target_workspace.id)
-        
+
         # Get all objects from source
         all_objects = await source_client.list_all_objects()
-        
+
         # Apply filters
         filtered_objects = [
-            obj for obj in all_objects
-            if (not schema_filter or obj.schema_id.sub_classification in schema_filter) and
-               (not name_filter or obj.name in name_filter)
+            obj
+            for obj in all_objects
+            if (not schema_filter or obj.schema_id.sub_classification in schema_filter)
+            and (not name_filter or obj.name in name_filter)
         ]
-        
+
         # Track progress
         copied_count = 0
         failed_count = 0
         cloned_data_ids = set()
-        
+
         for obj in filtered_objects:
             try:
                 # Download object
-                source_object = await source_client.download_object_by_id(
-                    obj.id,
-                    version=obj.version_id
-                )
-                
+                source_object = await source_client.download_object_by_id(obj.id, version=obj.version_id)
+
                 # Extract and copy new data blobs
                 data_identifiers = extract_data_references(source_object.as_dict())
                 new_data_identifiers = [d for d in data_identifiers if d not in cloned_data_ids]
-                
+
                 if new_data_identifiers:
                     await copy_object_data(
-                        source_client,
-                        target_client,
-                        source_object,
-                        new_data_identifiers,
-                        evo_context.connector
+                        source_client, target_client, source_object, new_data_identifiers, evo_context.connector
                     )
                     cloned_data_ids.update(new_data_identifiers)
-                
+
                 # Create object in target
                 object_dict = source_object.as_dict()
                 object_dict["uuid"] = None
-                
-                await target_client.create_geoscience_object(
-                    source_object.metadata.path,
-                    object_dict
-                )
-                
+
+                await target_client.create_geoscience_object(source_object.metadata.path, object_dict)
+
                 copied_count += 1
-                
+
             except Exception:
                 failed_count += 1
                 # Continue with next object
-        
+
         return {
             "target_workspace_id": str(target_workspace.id),
             "target_workspace_name": target_workspace.display_name,

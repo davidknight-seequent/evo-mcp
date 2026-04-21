@@ -98,7 +98,12 @@ class CompareEvoObjectsDetailedTests(unittest.IsolatedAsyncioTestCase):
             }
 
         with (
-            patch("evo_mcp.tools.admin_tools._resolve_instance", AsyncMock(return_value={"id": "instance-1", "name": "Instance One", "hub_url": "https://hub.example.invalid"})),
+            patch(
+                "evo_mcp.tools.admin_tools._resolve_instance",
+                AsyncMock(
+                    return_value={"id": "instance-1", "name": "Instance One", "hub_url": "https://hub.example.invalid"}
+                ),
+            ),
             patch("evo_mcp.tools.admin_tools._resolve_workspace", AsyncMock(return_value=fake_workspace)),
             patch("evo_mcp.tools.admin_tools.APIConnector", return_value=object()),
             patch("evo_mcp.tools.admin_tools.ObjectAPIClient", return_value=fake_object_client),

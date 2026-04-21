@@ -27,12 +27,7 @@ ProgressCallback = Callable[[dict[str, Any]], None | Awaitable[None]]
 def _fmt_user(user: Any) -> str:
     if user is None:
         return "unknown"
-    return (
-        getattr(user, "name", None)
-        or getattr(user, "display_name", None)
-        or getattr(user, "id", None)
-        or "unknown"
-    )
+    return getattr(user, "name", None) or getattr(user, "display_name", None) or getattr(user, "id", None) or "unknown"
 
 
 def _fmt_dt(value: Any) -> str:
@@ -124,11 +119,7 @@ class AnalysisResult:
 
     @property
     def objects_without_blob_refs(self) -> int:
-        return sum(
-            1
-            for obj in self._iter_scanned_objects()
-            if not obj.get("scan_error") and not obj.get("data_links")
-        )
+        return sum(1 for obj in self._iter_scanned_objects() if not obj.get("scan_error") and not obj.get("data_links"))
 
     @property
     def objects_with_fetch_errors(self) -> int:

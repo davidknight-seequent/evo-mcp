@@ -8,7 +8,7 @@ including workspace management, object ops, and data transfer.
 
 Configuration:
     Set MCP_TOOL_FILTER environment variable to filter tools and prompts:
-    - "admin" : Workspace management tools 
+    - "admin" : Workspace management tools
     - "data"  : Object query, file operations, and management tools
     - "all"   : All tools (default)
 
@@ -20,24 +20,25 @@ Configuration:
     - MCP_HTTP_HOST: Host to bind to (default: localhost)
     - MCP_HTTP_PORT: Port to listen on (default: 5000)
 
-The environment variables can be set in a .env file or 
+The environment variables can be set in a .env file or
 passed directly to the MCP server as input parameters.
 """
 
-import os
 import logging
+import os
 from pathlib import Path
+
 from fastmcp import FastMCP
 from fastmcp.utilities.logging import configure_logging
 
 from evo_mcp.tools import (
     register_admin_tools,
+    register_file_tools,
+    register_filesystem_tools,
     # register_data_tools,
     register_general_tools,
-    register_filesystem_tools,
-    register_object_builder_tools,
-    register_file_tools,
     register_instance_users_admin_tools,
+    register_object_builder_tools,
 )
 
 # Get transport mode from environment variable
@@ -55,11 +56,13 @@ if TRANSPORT == "http":
 
 # Get agent type from environment variable
 # This can either be set via MCP inputs, or the .env file used by the agent example
-TOOL_FILTER = os.getenv("MCP_TOOL_FILTER",
+TOOL_FILTER = os.getenv(
+    "MCP_TOOL_FILTER",
     os.getenv(
         "MCP_AGENT_TYPE",  # Kept for backwards compatibility
         "all",
-    )).lower()
+    ),
+).lower()
 VALID_TOOL_FILTERS = ["admin", "data", "all"]
 
 if TOOL_FILTER not in VALID_TOOL_FILTERS:
@@ -73,6 +76,7 @@ mcp = FastMCP(server_name)
 # Show more traceback frame for now, we may want to disabled the rich
 # traceback formatting entirely too.
 configure_logging(tracebacks_max_frames=20)
+
 
 def _get_objects_reference_content() -> str:
     """Load the objects reference content from a markdown file."""
@@ -94,11 +98,10 @@ register_general_tools(mcp)
 
 if TOOL_FILTER in ["all", "admin"]:
     # Admin Agent: Workspace and instance management tools
-    # Includes: workspace creation, snapshots, duplication, permissions management,
-    # and cross-workspace comparison analysis
+    # Includes: workspace creation, snapshots, duplication, permissions management
     register_admin_tools(mcp)
     register_instance_users_admin_tools(mcp)
-if TOOL_FILTER in ["all", "data"]: #  "data_agent"
+if TOOL_FILTER in ["all", "data"]:  #  "data_agent"
     # register_data_tools(mcp)
     register_filesystem_tools(mcp)
     register_object_builder_tools(mcp)
@@ -112,11 +115,12 @@ if TOOL_FILTER in ["all", "data"]: #  "data_agent"
 # Resources (not currently supported in ADK)
 # =============================================================================
 
+
 @mcp.resource("evo://objects/schema-reference")
 def get_objects_reference() -> str:
     """
     Comprehensive technical reference for Evo Geoscience Objects (GOs).
-    
+
     Provides detailed schema information for all available geoscience object types,
     including required and optional parameters for each object type.
     """
@@ -129,6 +133,7 @@ def get_objects_reference() -> str:
 
 if TOOL_FILTER == "all":
     print("Registering prompt for all tool types.")
+
     @mcp.prompt(name="all_prompt")
     def all_prompt() -> str:
         """All prompt that encompasses the functionality of all tool without a filter applied."""
@@ -155,8 +160,6 @@ if TOOL_FILTER == "all":
         - Listing users in the instance and their roles
         - Adding or removing users from the instance
         - Updating user roles in the instance
-        - Comparing two objects across workspaces or instances in detail
-        - Inspecting linked Parquet blob schemas and metadata for two objects
 
         When a user asks about workspaces, use the available MCP tools to provide accurate information.
         Always be clear about what workspace you're working with.
@@ -179,6 +182,7 @@ if TOOL_FILTER == "all":
 
 # Register prompts based on agent type
 if TOOL_FILTER in ["all", "admin"]:
+
     @mcp.prompt(name="admin_prompt")
     def admin_prompt() -> str:
         """Prompt for management operations."""
@@ -193,7 +197,6 @@ if TOOL_FILTER in ["all", "admin"]:
         - Managing user permissions and access control
         - Health checks and status monitoring
         - Selecting instances (organizations) to work with
-        - Comparing two objects across workspaces or instances in detail
 
         When a user asks about workspaces, use the available MCP tools to provide accurate information.
         Always be clear about what workspace you're working with.
@@ -204,6 +207,7 @@ if TOOL_FILTER in ["all", "admin"]:
 
 
 if TOOL_FILTER in ["all", "data"]:
+
     @mcp.prompt(name="data_prompt")
     def data_prompt() -> str:
         """Prompt for local file system data connector and object creation operations."""
@@ -309,7 +313,7 @@ if TOOL_FILTER in ["all", "data"]:
 
         If an error occurs when calling a tool, return the full error message.
         """
-    
+
 
 # Note: Evo context initialization happens lazily on first tool call
 # via ensure_initialized() because OAuth requires browser interaction

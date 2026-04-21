@@ -50,10 +50,7 @@ class _FakeObjectModel:
 class _FakeDownloadedObject:
     def __init__(self, *, schema: str, blob_names: list[str]) -> None:
         self._object = _FakeObjectModel(schema)
-        self._urls_by_name = {
-            blob_name: f"https://example.invalid/{blob_name}"
-            for blob_name in blob_names
-        }
+        self._urls_by_name = {blob_name: f"https://example.invalid/{blob_name}" for blob_name in blob_names}
 
     def as_dict(self) -> dict[str, str]:
         return self._object.model_dump(mode="python", by_alias=True)
