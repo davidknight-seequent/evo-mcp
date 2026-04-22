@@ -340,6 +340,14 @@ async def _run_duplicate_analysis(
         except Exception as exc:
             logger.warning("Failed to list objects in workspace %s: %s", ws_name, exc)
             workspace_stats.append({"name": ws_name, "id": str(workspace.id), "objects": 0, "error": str(exc)})
+            processed_workspaces += 1
+            await _report_progress(
+                ctx,
+                processed_workspaces,
+                total_workspace_count,
+                f"Failed to scan workspace {ws_name}: {exc} \u2014 "
+                f"{processed_workspaces}/{total_workspace_count} workspaces done",
+            )
             continue
 
         scanned = await asyncio.gather(
@@ -615,14 +623,22 @@ async def _download_blob_bytes(
 
     async def _fetch(s: aiohttp.ClientSession) -> bytes:
         async with s.get(download_url) as response:
-            if response.status in {401, 403}:
-                auth_headers = await _get_authorization_headers(connector)
-                if auth_headers:
-                    async with s.get(download_url, headers=auth_headers) as retry_response:
-                        retry_response.raise_for_status()
-                        return await retry_response.read()
-            response.raise_for_status()
-            return await response.read()
+            if response.status not in {401, 403}:
+                response.raise_for_status()
+                return await response.read()
+
+        auth_headers = await _get_authorization_headers(connector)
+        if auth_headers:
+            async with s.get(download_url, headers=auth_headers) as retry_response:
+                retry_response.raise_for_status()
+                return await retry_response.read()
+
+        raise aiohttp.ClientResponseError(
+            request_info=aiohttp.RequestInfo(url=download_url, method="GET", headers={}, real_url=download_url),
+            history=(),
+            status=403,
+            message="Unauthorized and no auth headers available",
+        )
 
     if session is not None:
         return await _fetch(session)
