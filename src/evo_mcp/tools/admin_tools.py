@@ -236,11 +236,13 @@ async def _preview_workspaces() -> list[dict[str, Any]]:
         except Exception as exc:
             logger.warning("Failed to list objects in workspace %s: %s", ws_name, exc)
             object_count = -1
-        results.append({
-            "workspace_id": str(workspace.id),
-            "workspace_name": ws_name,
-            "object_count": object_count,
-        })
+        results.append(
+            {
+                "workspace_id": str(workspace.id),
+                "workspace_name": ws_name,
+                "object_count": object_count,
+            }
+        )
 
     return results
 
