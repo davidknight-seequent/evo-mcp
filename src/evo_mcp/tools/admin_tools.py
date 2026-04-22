@@ -83,7 +83,9 @@ async def _list_all_pages(
 
                 page = await fetch_page(**fetch_kwargs)
                 page_items = page.items()
-                if not page_items and not page.is_last:
+                next_offset = page.next_offset
+
+                if next_offset <= offset and not page.is_last:
                     raise RuntimeError(
                         f"No pagination progress while listing {resource_name}: "
                         f"offset={offset}, limit={current_page_size}, total={page.total}"
@@ -92,7 +94,7 @@ async def _list_all_pages(
                 items.extend(page_items)
                 if page.is_last:
                     return items
-                offset = page.next_offset
+                offset = next_offset
         except Exception as exc:
             if not _is_pagination_limit_error(exc) or current_page_size <= MIN_PAGE_SIZE:
                 raise

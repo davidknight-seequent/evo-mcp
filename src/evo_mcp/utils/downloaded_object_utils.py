@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 
-def downloaded_object_data_links(downloaded: Any) -> list[dict[str, str]]:
+def downloaded_object_data_links(downloaded: Any) -> list[dict[str, Any]]:
     """Return stable data-link metadata from a downloaded Evo object.
 
     The Evo SDK exposes downloaded-object data URLs through a urls-by-name mapping.
