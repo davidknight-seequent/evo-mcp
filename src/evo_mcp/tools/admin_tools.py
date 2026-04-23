@@ -676,8 +676,7 @@ async def _download_blob_response(
 
         if not hub_url:
             raise PermissionError(
-                "Blob URL origin could not be validated because hub_url is missing; "
-                "refusing to send auth headers."
+                "Blob URL origin could not be validated because hub_url is missing; refusing to send auth headers."
             )
 
         download_origin = _normalized_origin(download_url)
