@@ -141,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     metadata_base64 = _read_input(args)
     metadata_bytes = base64.b64decode(metadata_base64, validate=True)
     decoded = decode_parquet_metadata(metadata_bytes)
-    json.dump(decoded, sys.stdout, indent=args.indent)
+    json.dump(decoded, sys.stdout, indent=args.indent, default=str)
     sys.stdout.write("\n")
     return 0
 

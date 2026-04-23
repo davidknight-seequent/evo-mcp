@@ -44,6 +44,7 @@ OBJECT_FETCH_TIMEOUT_SECONDS = 60
 PARQUET_INSPECTION_MAX_CONCURRENCY = 10
 PARQUET_MAGIC = b"PAR1"
 PARQUET_FOOTER_SIZE = 8
+MAX_PARQUET_METADATA_BYTES = 64 * 1024 * 1024  # 64 MB safety cap
 
 
 def _is_pagination_limit_error(exc: Exception) -> bool:
@@ -657,6 +658,13 @@ async def _download_blob_response(
         if auth_headers:
             retry_headers = {**base_headers, **auth_headers}
             async with s.get(download_url, headers=retry_headers, allow_redirects=False) as retry_response:
+                if 300 <= retry_response.status < 400:
+                    location = retry_response.headers.get("Location", "<unknown>")
+                    raise RuntimeError(
+                        f"Authenticated blob request was redirected (HTTP {retry_response.status}) "
+                        f"to '{location}'. Redirects are disabled on authenticated retries to "
+                        f"prevent leaking auth headers to external hosts."
+                    )
                 retry_response.raise_for_status()
                 return await retry_response.read(), dict(retry_response.headers), retry_response.status
 
@@ -769,6 +777,11 @@ async def _inspect_parquet_metadata(
         return _inspect_parquet_bytes(blob_name, footer_bytes)
 
     metadata_length = _parquet_footer_metadata_length(footer_bytes)
+    if metadata_length > MAX_PARQUET_METADATA_BYTES:
+        raise ValueError(
+            f"Parquet metadata length ({metadata_length:,} bytes) exceeds safety cap "
+            f"({MAX_PARQUET_METADATA_BYTES:,} bytes) for blob '{blob_name}'"
+        )
     metadata_and_footer_size = metadata_length + PARQUET_FOOTER_SIZE
     tail_bytes, tail_headers, tail_status = await _download_blob_response(
         download_url,
