@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import unittest
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -143,11 +144,82 @@ class CompareEvoObjectsDetailedTests(unittest.IsolatedAsyncioTestCase):
             result["parquet_files"],
         )
 
+    async def test_resolve_object_side_limits_parquet_inspection_concurrency(self) -> None:
+        fake_workspace = SimpleNamespace(
+            id="workspace-1",
+            display_name="Workspace One",
+            get_environment=lambda: "workspace-env",
+        )
+        fake_downloaded = SimpleNamespace(
+            metadata=SimpleNamespace(
+                id="object-1",
+                name="Object One",
+                path="/Object One.json",
+                version_id="v1",
+                schema_id=SimpleNamespace(sub_classification="pointsets"),
+                created_at=None,
+                modified_at=None,
+            ),
+            as_dict=lambda: {
+                "schema": "/objects/pointsets/1.0.0/pointsets.schema.json",
+            },
+            _urls_by_name={
+                "blob-a": "https://example.invalid/a",
+                "blob-b": "https://example.invalid/b",
+                "blob-c": "https://example.invalid/c",
+                "blob-d": "https://example.invalid/d",
+            },
+        )
+        fake_object_client = SimpleNamespace(
+            download_object_by_id=AsyncMock(return_value=fake_downloaded),
+        )
+        fake_connector = SimpleNamespace(_transport=object(), _authorizer=object())
+        fake_evo_context = SimpleNamespace(connector=fake_connector)
+        current_concurrency = 0
+        max_concurrency = 0
+
+        async def fake_inspect_data_link(link, connector, *, hub_url="", session=None):
+            del connector, hub_url, session
+            nonlocal current_concurrency, max_concurrency
+            current_concurrency += 1
+            max_concurrency = max(max_concurrency, current_concurrency)
+            await asyncio.sleep(0)
+            current_concurrency -= 1
+            return {
+                "blob_name": link["name"],
+                "download_url": link["download_url"],
+                "num_rows": 3,
+            }
+
+        with (
+            patch(
+                "evo_mcp.tools.admin_tools._resolve_instance",
+                AsyncMock(
+                    return_value={"id": "instance-1", "name": "Instance One", "hub_url": "https://hub.example.invalid"}
+                ),
+            ),
+            patch("evo_mcp.tools.admin_tools._resolve_workspace", AsyncMock(return_value=fake_workspace)),
+            patch("evo_mcp.tools.admin_tools.APIConnector", return_value=object()),
+            patch("evo_mcp.tools.admin_tools.ObjectAPIClient", return_value=fake_object_client),
+            patch("evo_mcp.tools.admin_tools._inspect_data_link", side_effect=fake_inspect_data_link),
+            patch("evo_mcp.tools.admin_tools.evo_context", fake_evo_context),
+            patch("evo_mcp.tools.admin_tools.PARQUET_INSPECTION_MAX_CONCURRENCY", 2),
+        ):
+            result = await _resolve_object_side(
+                side_name="left",
+                workspace_id="00000000-0000-0000-0000-000000000001",
+                object_id="00000000-0000-0000-0000-000000000002",
+            )
+
+        self.assertEqual(4, len(result["parquet_files"]))
+        self.assertLessEqual(max_concurrency, 2)
+
     async def test_download_blob_bytes_disables_redirects_on_authenticated_retry(self) -> None:
         class _FakeResponse:
             def __init__(self, status: int, body: bytes = b"") -> None:
                 self.status = status
                 self._body = body
+                self.headers: dict[str, str] = {}
 
             async def __aenter__(self):
                 return self
@@ -185,7 +257,7 @@ class CompareEvoObjectsDetailedTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(b"ok", result)
         self.assertEqual(2, len(session.calls))
-        self.assertEqual({}, session.calls[0][1])
+        self.assertEqual({"headers": {}}, session.calls[0][1])
         self.assertEqual(
             {
                 "headers": {"Authorization": "Bearer token"},
@@ -193,6 +265,50 @@ class CompareEvoObjectsDetailedTests(unittest.IsolatedAsyncioTestCase):
             },
             session.calls[1][1],
         )
+
+    async def test_download_blob_bytes_refuses_authenticated_retry_without_hub_url(self) -> None:
+        class _FakeResponse:
+            def __init__(self, status: int, body: bytes = b"") -> None:
+                self.status = status
+                self._body = body
+                self.headers: dict[str, str] = {}
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+            def raise_for_status(self) -> None:
+                return None
+
+            async def read(self) -> bytes:
+                return self._body
+
+        class _FakeSession:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, dict[str, object]]] = []
+                self._responses = [_FakeResponse(401)]
+
+            def get(self, url: str, **kwargs):
+                self.calls.append((url, kwargs))
+                return self._responses.pop(0)
+
+        session = _FakeSession()
+
+        with patch(
+            "evo_mcp.tools.admin_tools._get_authorization_headers",
+            AsyncMock(return_value={"Authorization": "Bearer token"}),
+        ):
+            with self.assertRaisesRegex(PermissionError, "hub_url is missing"):
+                await _download_blob_bytes(
+                    "https://storage.example.invalid/blob",
+                    connector=SimpleNamespace(),
+                    session=session,
+                )
+
+        self.assertEqual(1, len(session.calls))
+        self.assertEqual({"headers": {}}, session.calls[0][1])
 
     async def test_builds_json_and_parquet_summary_report(self) -> None:
         fake_mcp = _FakeMCP()

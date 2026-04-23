@@ -41,6 +41,7 @@ DEFAULT_MAX_WORKSPACES = 10
 MIN_PAGE_SIZE = 1
 LIST_REQUEST_TIMEOUT_SECONDS = 60
 OBJECT_FETCH_TIMEOUT_SECONDS = 60
+PARQUET_INSPECTION_MAX_CONCURRENCY = 10
 PARQUET_MAGIC = b"PAR1"
 PARQUET_FOOTER_SIZE = 8
 
@@ -638,14 +639,19 @@ async def _download_blob_response(
                 response.raise_for_status()
                 return await response.read(), dict(response.headers), response.status
 
-        if hub_url:
-            hub_host = urlparse(hub_url).hostname or ""
-            download_host = urlparse(download_url).hostname or ""
-            if hub_host.lower() != download_host.lower():
-                raise PermissionError(
-                    f"Blob URL host '{download_host}' does not match hub host '{hub_host}'; "
-                    f"refusing to send auth headers to an external domain."
-                )
+        download_host = urlparse(download_url).hostname or ""
+        if not hub_url:
+            raise PermissionError(
+                f"Blob URL host '{download_host}' could not be validated because hub_url is missing; "
+                f"refusing to send auth headers."
+            )
+
+        hub_host = urlparse(hub_url).hostname or ""
+        if hub_host.lower() != download_host.lower():
+            raise PermissionError(
+                f"Blob URL host '{download_host}' does not match hub host '{hub_host}'; "
+                f"refusing to send auth headers to an external domain."
+            )
 
         auth_headers = await _get_authorization_headers(connector)
         if auth_headers:
@@ -974,10 +980,14 @@ async def _resolve_object_side(
 
     hub_url_for_auth = instance["hub_url"]
     timeout = aiohttp.ClientTimeout(total=300)
+    inspect_semaphore = asyncio.Semaphore(PARQUET_INSPECTION_MAX_CONCURRENCY)
+
+    async def _inspect_data_link_bounded(link: dict[str, Any]) -> dict[str, Any]:
+        async with inspect_semaphore:
+            return await _inspect_data_link(link, connector, hub_url=hub_url_for_auth, session=session)
+
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        parquet_files = await asyncio.gather(
-            *[_inspect_data_link(link, connector, hub_url=hub_url_for_auth, session=session) for link in data_links]
-        )
+        parquet_files = await asyncio.gather(*[_inspect_data_link_bounded(link) for link in data_links])
     schema_path = object_payload.get("schema")
 
     return {
