@@ -41,6 +41,8 @@ DEFAULT_MAX_WORKSPACES = 10
 MIN_PAGE_SIZE = 1
 LIST_REQUEST_TIMEOUT_SECONDS = 60
 OBJECT_FETCH_TIMEOUT_SECONDS = 60
+PARQUET_MAGIC = b"PAR1"
+PARQUET_FOOTER_SIZE = 8
 
 
 def _is_pagination_limit_error(exc: Exception) -> bool:
@@ -618,21 +620,23 @@ async def _get_authorization_headers(connector: APIConnector) -> dict[str, str]:
     return {str(key): str(value) for key, value in headers.items()}
 
 
-async def _download_blob_bytes(
+async def _download_blob_response(
     download_url: str,
     connector: APIConnector,
     *,
     hub_url: str = "",
     session: aiohttp.ClientSession | None = None,
-) -> bytes:
-    """Download blob bytes, trying without auth first to avoid leaking tokens to pre-signed URLs."""
+    request_headers: dict[str, str] | None = None,
+) -> tuple[bytes, dict[str, str], int]:
+    """Download blob content, trying without auth first to avoid leaking tokens to pre-signed URLs."""
     timeout = aiohttp.ClientTimeout(total=300)
+    base_headers = request_headers or {}
 
-    async def _fetch(s: aiohttp.ClientSession) -> bytes:
-        async with s.get(download_url) as response:
+    async def _fetch(s: aiohttp.ClientSession) -> tuple[bytes, dict[str, str], int]:
+        async with s.get(download_url, headers=base_headers) as response:
             if response.status not in {401, 403}:
                 response.raise_for_status()
-                return await response.read()
+                return await response.read(), dict(response.headers), response.status
 
         if hub_url:
             hub_host = urlparse(hub_url).hostname or ""
@@ -645,9 +649,10 @@ async def _download_blob_bytes(
 
         auth_headers = await _get_authorization_headers(connector)
         if auth_headers:
-            async with s.get(download_url, headers=auth_headers, allow_redirects=False) as retry_response:
+            retry_headers = {**base_headers, **auth_headers}
+            async with s.get(download_url, headers=retry_headers, allow_redirects=False) as retry_response:
                 retry_response.raise_for_status()
-                return await retry_response.read()
+                return await retry_response.read(), dict(retry_response.headers), retry_response.status
 
         raise PermissionError("Unauthorized and no auth headers available")
 
@@ -656,6 +661,41 @@ async def _download_blob_bytes(
 
     async with aiohttp.ClientSession(timeout=timeout) as new_session:
         return await _fetch(new_session)
+
+
+async def _download_blob_bytes(
+    download_url: str,
+    connector: APIConnector,
+    *,
+    hub_url: str = "",
+    session: aiohttp.ClientSession | None = None,
+) -> bytes:
+    blob_bytes, _, _ = await _download_blob_response(
+        download_url,
+        connector,
+        hub_url=hub_url,
+        session=session,
+    )
+    return blob_bytes
+
+
+def _content_range_total_size(headers: dict[str, str]) -> int | None:
+    for key, value in headers.items():
+        if key.lower() != "content-range":
+            continue
+
+        match = re.match(r"^bytes\s+\d+-\d+/(\d+)$", value)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _parquet_footer_metadata_length(footer_bytes: bytes) -> int:
+    if len(footer_bytes) < PARQUET_FOOTER_SIZE:
+        raise ValueError("Parquet footer is truncated")
+    if footer_bytes[-4:] != PARQUET_MAGIC:
+        raise ValueError("Invalid Parquet footer magic")
+    return int.from_bytes(footer_bytes[-8:-4], "little")
 
 
 def _parquet_schema_fields(arrow_schema: pa.Schema) -> list[dict[str, Any]]:
@@ -669,14 +709,13 @@ def _parquet_schema_fields(arrow_schema: pa.Schema) -> list[dict[str, Any]]:
     ]
 
 
-def _inspect_parquet_bytes(blob_name: str, blob_bytes: bytes) -> dict[str, Any]:
-    parquet_file = pq.ParquetFile(pa.BufferReader(blob_bytes))
+def _inspect_parquet_file(blob_name: str, parquet_file: pq.ParquetFile, *, size_bytes: int | None) -> dict[str, Any]:
     metadata = parquet_file.metadata
     format_version = getattr(metadata, "format_version", None)
 
     return {
         "blob_name": blob_name,
-        "size_bytes": len(blob_bytes),
+        "size_bytes": size_bytes,
         "parquet_format_version": str(format_version) if format_version is not None else None,
         "created_by": metadata.created_by,
         "num_rows": metadata.num_rows,
@@ -687,6 +726,57 @@ def _inspect_parquet_bytes(blob_name: str, blob_bytes: bytes) -> dict[str, Any]:
         "parquet_schema": str(parquet_file.schema),
         "fields": _parquet_schema_fields(parquet_file.schema_arrow),
     }
+
+
+def _inspect_parquet_bytes(blob_name: str, blob_bytes: bytes) -> dict[str, Any]:
+    parquet_file = pq.ParquetFile(pa.BufferReader(blob_bytes))
+    return _inspect_parquet_file(blob_name, parquet_file, size_bytes=len(blob_bytes))
+
+
+def _inspect_parquet_footer_bytes(
+    blob_name: str,
+    footer_bytes: bytes,
+    *,
+    blob_size_bytes: int | None,
+) -> dict[str, Any]:
+    parquet_file = pq.ParquetFile(pa.BufferReader(PARQUET_MAGIC + footer_bytes))
+    return _inspect_parquet_file(blob_name, parquet_file, size_bytes=blob_size_bytes)
+
+
+async def _inspect_parquet_metadata(
+    blob_name: str,
+    download_url: str,
+    connector: APIConnector,
+    *,
+    hub_url: str = "",
+    session: aiohttp.ClientSession | None = None,
+) -> dict[str, Any]:
+    footer_bytes, footer_headers, footer_status = await _download_blob_response(
+        download_url,
+        connector,
+        hub_url=hub_url,
+        session=session,
+        request_headers={"Range": f"bytes=-{PARQUET_FOOTER_SIZE}"},
+    )
+
+    if footer_status == 200 or footer_bytes.startswith(PARQUET_MAGIC):
+        return _inspect_parquet_bytes(blob_name, footer_bytes)
+
+    metadata_length = _parquet_footer_metadata_length(footer_bytes)
+    metadata_and_footer_size = metadata_length + PARQUET_FOOTER_SIZE
+    tail_bytes, tail_headers, tail_status = await _download_blob_response(
+        download_url,
+        connector,
+        hub_url=hub_url,
+        session=session,
+        request_headers={"Range": f"bytes=-{metadata_and_footer_size}"},
+    )
+
+    if tail_status == 200 or tail_bytes.startswith(PARQUET_MAGIC):
+        return _inspect_parquet_bytes(blob_name, tail_bytes)
+
+    blob_size_bytes = _content_range_total_size(tail_headers) or _content_range_total_size(footer_headers)
+    return _inspect_parquet_footer_bytes(blob_name, tail_bytes, blob_size_bytes=blob_size_bytes)
 
 
 async def _inspect_data_link(
@@ -708,8 +798,11 @@ async def _inspect_data_link(
         return result
 
     try:
-        blob_bytes = await _download_blob_bytes(str(download_url), connector, hub_url=hub_url, session=session)
-        result.update(_inspect_parquet_bytes(blob_name, blob_bytes))
+        result.update(
+            await _inspect_parquet_metadata(
+                str(blob_name), str(download_url), connector, hub_url=hub_url, session=session
+            )
+        )
         return result
     except Exception as exc:
         result["error"] = str(exc)

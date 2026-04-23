@@ -12,7 +12,12 @@ from unittest.mock import AsyncMock, patch
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from evo_mcp.tools.admin_tools import _download_blob_bytes, _inspect_parquet_bytes, _resolve_object_side, register_admin_tools
+from evo_mcp.tools.admin_tools import (
+    _download_blob_bytes,
+    _inspect_parquet_bytes,
+    _resolve_object_side,
+    register_admin_tools,
+)
 
 
 class _FakeMCP:
