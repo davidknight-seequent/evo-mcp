@@ -45,6 +45,7 @@ PARQUET_INSPECTION_MAX_CONCURRENCY = 10
 PARQUET_MAGIC = b"PAR1"
 PARQUET_FOOTER_SIZE = 8
 MAX_PARQUET_METADATA_BYTES = 64 * 1024 * 1024  # 64 MB safety cap
+MAX_FULL_BLOB_DOWNLOAD_BYTES = 256 * 1024 * 1024  # 256 MB safety cap for full-blob fallback
 
 
 def _is_pagination_limit_error(exc: Exception) -> bool:
@@ -774,6 +775,12 @@ async def _inspect_parquet_metadata(
     )
 
     if footer_status == 200 or footer_bytes.startswith(PARQUET_MAGIC):
+        if len(footer_bytes) > MAX_FULL_BLOB_DOWNLOAD_BYTES:
+            raise ValueError(
+                f"Full blob download for '{blob_name}' is {len(footer_bytes):,} bytes, "
+                f"exceeding the {MAX_FULL_BLOB_DOWNLOAD_BYTES:,} byte safety cap. "
+                f"The server may not support Range requests."
+            )
         return _inspect_parquet_bytes(blob_name, footer_bytes)
 
     metadata_length = _parquet_footer_metadata_length(footer_bytes)
@@ -792,6 +799,12 @@ async def _inspect_parquet_metadata(
     )
 
     if tail_status == 200 or tail_bytes.startswith(PARQUET_MAGIC):
+        if len(tail_bytes) > MAX_FULL_BLOB_DOWNLOAD_BYTES:
+            raise ValueError(
+                f"Full blob download for '{blob_name}' is {len(tail_bytes):,} bytes, "
+                f"exceeding the {MAX_FULL_BLOB_DOWNLOAD_BYTES:,} byte safety cap. "
+                f"The server may not support Range requests."
+            )
         return _inspect_parquet_bytes(blob_name, tail_bytes)
 
     blob_size_bytes = _content_range_total_size(tail_headers) or _content_range_total_size(footer_headers)
@@ -1035,7 +1048,7 @@ def register_admin_tools(mcp):
     """Register all workspace-related tools with the FastMCP server."""
 
     @mcp.tool()
-    async def create_workspace(name: str, description: str = "", labels: list[str] = []) -> dict:
+    async def create_workspace(name: str, description: str = "", labels: list[str] | None = None) -> dict:
         """Create a new workspace.
 
         Args:
@@ -1120,7 +1133,7 @@ def register_admin_tools(mcp):
         all_objects = await object_client.list_all_objects()
 
         # Create snapshot
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         snapshot_name = snapshot_name or f"snapshot_{timestamp}"
 
         objects_snapshot = []
@@ -1386,30 +1399,33 @@ def register_admin_tools(mcp):
         format metadata.
         """
         if max_reported_differences < 1:
-            raise ValueError("max_reported_differences must be at least 1")
+            return {"error": "max_reported_differences must be at least 1"}
 
-        left_side, right_side = await asyncio.gather(
-            _resolve_object_side(
-                side_name="left",
-                instance_id=left_instance_id,
-                instance_name=left_instance_name,
-                workspace_id=left_workspace_id,
-                workspace_name=left_workspace_name,
-                object_id=left_object_id,
-                object_path=left_object_path,
-                version=left_version,
-            ),
-            _resolve_object_side(
-                side_name="right",
-                instance_id=right_instance_id,
-                instance_name=right_instance_name,
-                workspace_id=right_workspace_id,
-                workspace_name=right_workspace_name,
-                object_id=right_object_id,
-                object_path=right_object_path,
-                version=right_version,
-            ),
-        )
+        try:
+            left_side, right_side = await asyncio.gather(
+                _resolve_object_side(
+                    side_name="left",
+                    instance_id=left_instance_id,
+                    instance_name=left_instance_name,
+                    workspace_id=left_workspace_id,
+                    workspace_name=left_workspace_name,
+                    object_id=left_object_id,
+                    object_path=left_object_path,
+                    version=left_version,
+                ),
+                _resolve_object_side(
+                    side_name="right",
+                    instance_id=right_instance_id,
+                    instance_name=right_instance_name,
+                    workspace_id=right_workspace_id,
+                    workspace_name=right_workspace_name,
+                    object_id=right_object_id,
+                    object_path=right_object_path,
+                    version=right_version,
+                ),
+            )
+        except (ValueError, PermissionError) as exc:
+            return {"error": str(exc)}
 
         left_crs_values = sorted(((entry["path"], entry["value"]) for entry in left_side["crs_candidates"]))
         right_crs_values = sorted(((entry["path"], entry["value"]) for entry in right_side["crs_candidates"]))
