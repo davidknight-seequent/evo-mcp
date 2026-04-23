@@ -626,29 +626,83 @@ async def _download_blob_response(
     hub_url: str = "",
     session: aiohttp.ClientSession | None = None,
     request_headers: dict[str, str] | None = None,
+    max_bytes: int = MAX_FULL_BLOB_DOWNLOAD_BYTES,
 ) -> tuple[bytes, dict[str, str], int]:
     """Download blob content, trying without auth first to avoid leaking tokens to pre-signed URLs."""
     timeout = aiohttp.ClientTimeout(total=300)
     base_headers = request_headers or {}
 
+    def _normalized_origin(url: str) -> tuple[str, str, int] | None:
+        parsed = urlparse(url)
+        scheme = (parsed.scheme or "").lower()
+        hostname = (parsed.hostname or "").lower()
+        if not scheme or not hostname:
+            return None
+        try:
+            port = parsed.port
+        except ValueError:
+            return None
+        if port is None:
+            port = 443 if scheme == "https" else 80 if scheme == "http" else None
+            if port is None:
+                return None
+        return scheme, hostname, port
+
+    async def _read_bounded(response: aiohttp.ClientResponse) -> bytes:
+        """Read response body with a size cap to prevent OOM on oversized blobs."""
+        content_length = response.content_length
+        if content_length is not None and content_length > max_bytes:
+            raise ValueError(
+                f"Response Content-Length ({content_length:,} bytes) exceeds the "
+                f"{max_bytes:,} byte download cap. Aborting before downloading."
+            )
+        chunks: list[bytes] = []
+        total = 0
+        async for chunk in response.content.iter_chunked(1024 * 1024):
+            total += len(chunk)
+            if total > max_bytes:
+                raise ValueError(
+                    f"Response body exceeded the {max_bytes:,} byte download cap "
+                    f"after reading {total:,} bytes. Download aborted."
+                )
+            chunks.append(chunk)
+        return b"".join(chunks)
+
     async def _fetch(s: aiohttp.ClientSession) -> tuple[bytes, dict[str, str], int]:
         async with s.get(download_url, headers=base_headers) as response:
             if response.status not in {401, 403}:
                 response.raise_for_status()
-                return await response.read(), dict(response.headers), response.status
+                return await _read_bounded(response), dict(response.headers), response.status
 
-        download_host = urlparse(download_url).hostname or ""
         if not hub_url:
             raise PermissionError(
-                f"Blob URL host '{download_host}' could not be validated because hub_url is missing; "
+                "Blob URL origin could not be validated because hub_url is missing; "
+                "refusing to send auth headers."
+            )
+
+        download_origin = _normalized_origin(download_url)
+        hub_origin = _normalized_origin(hub_url)
+        if download_origin is None or hub_origin is None:
+            raise PermissionError(
+                f"Blob URL '{download_url}' or hub URL '{hub_url}' has an invalid or unsupported origin; "
                 f"refusing to send auth headers."
             )
 
-        hub_host = urlparse(hub_url).hostname or ""
-        if hub_host.lower() != download_host.lower():
+        download_scheme, download_host, download_port = download_origin
+        hub_scheme, hub_host, hub_port = hub_origin
+
+        if download_scheme != "https" or hub_scheme != "https":
             raise PermissionError(
-                f"Blob URL host '{download_host}' does not match hub host '{hub_host}'; "
-                f"refusing to send auth headers to an external domain."
+                f"Authenticated blob retries require HTTPS origins; got blob origin "
+                f"'{download_scheme}://{download_host}:{download_port}' and hub origin "
+                f"'{hub_scheme}://{hub_host}:{hub_port}'."
+            )
+
+        if download_origin != hub_origin:
+            raise PermissionError(
+                f"Blob URL origin '{download_scheme}://{download_host}:{download_port}' does not match "
+                f"hub origin '{hub_scheme}://{hub_host}:{hub_port}'; refusing to send auth headers "
+                f"to a different origin."
             )
 
         auth_headers = await _get_authorization_headers(connector)
@@ -663,7 +717,7 @@ async def _download_blob_response(
                         f"prevent leaking auth headers to external hosts."
                     )
                 retry_response.raise_for_status()
-                return await retry_response.read(), dict(retry_response.headers), retry_response.status
+                return await _read_bounded(retry_response), dict(retry_response.headers), retry_response.status
 
         raise PermissionError("Unauthorized and no auth headers available")
 
@@ -773,12 +827,6 @@ async def _inspect_parquet_metadata(
     )
 
     if footer_status == 200 or footer_bytes.startswith(PARQUET_MAGIC):
-        if len(footer_bytes) > MAX_FULL_BLOB_DOWNLOAD_BYTES:
-            raise ValueError(
-                f"Full blob download for '{blob_name}' is {len(footer_bytes):,} bytes, "
-                f"exceeding the {MAX_FULL_BLOB_DOWNLOAD_BYTES:,} byte safety cap. "
-                f"The server may not support Range requests."
-            )
         return _inspect_parquet_bytes(blob_name, footer_bytes)
 
     metadata_length = _parquet_footer_metadata_length(footer_bytes)
@@ -797,12 +845,6 @@ async def _inspect_parquet_metadata(
     )
 
     if tail_status == 200 or tail_bytes.startswith(PARQUET_MAGIC):
-        if len(tail_bytes) > MAX_FULL_BLOB_DOWNLOAD_BYTES:
-            raise ValueError(
-                f"Full blob download for '{blob_name}' is {len(tail_bytes):,} bytes, "
-                f"exceeding the {MAX_FULL_BLOB_DOWNLOAD_BYTES:,} byte safety cap. "
-                f"The server may not support Range requests."
-            )
         return _inspect_parquet_bytes(blob_name, tail_bytes)
 
     blob_size_bytes = _content_range_total_size(tail_headers) or _content_range_total_size(footer_headers)

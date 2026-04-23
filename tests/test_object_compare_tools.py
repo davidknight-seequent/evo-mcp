@@ -215,11 +215,20 @@ class CompareEvoObjectsDetailedTests(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(max_concurrency, 2)
 
     async def test_download_blob_bytes_disables_redirects_on_authenticated_retry(self) -> None:
+        class _FakeContent:
+            def __init__(self, body: bytes) -> None:
+                self._body = body
+
+            async def iter_chunked(self, chunk_size: int):
+                yield self._body
+
         class _FakeResponse:
             def __init__(self, status: int, body: bytes = b"") -> None:
                 self.status = status
                 self._body = body
                 self.headers: dict[str, str] = {}
+                self.content_length = len(body) if body else 0
+                self.content = _FakeContent(body)
 
             async def __aenter__(self):
                 return self
@@ -267,11 +276,20 @@ class CompareEvoObjectsDetailedTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_download_blob_bytes_refuses_authenticated_retry_without_hub_url(self) -> None:
+        class _FakeContent:
+            def __init__(self, body: bytes) -> None:
+                self._body = body
+
+            async def iter_chunked(self, chunk_size: int):
+                yield self._body
+
         class _FakeResponse:
             def __init__(self, status: int, body: bytes = b"") -> None:
                 self.status = status
                 self._body = body
                 self.headers: dict[str, str] = {}
+                self.content_length = len(body) if body else 0
+                self.content = _FakeContent(body)
 
             async def __aenter__(self):
                 return self
