@@ -120,7 +120,9 @@ async def _list_all_pages(
 def _fmt_user(user: Any) -> str:
     if user is None:
         return "unknown"
-    return getattr(user, "name", None) or getattr(user, "display_name", None) or getattr(user, "id", None) or "unknown"
+    return str(
+        getattr(user, "name", None) or getattr(user, "display_name", None) or getattr(user, "id", None) or "unknown"
+    )
 
 
 def _fmt_dt(value: Any) -> str:
@@ -129,7 +131,7 @@ def _fmt_dt(value: Any) -> str:
     if isinstance(value, datetime):
         if value.tzinfo is None:
             value = value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc).strftime("%d/%m/%Y")
+        return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     return str(value)
 
 
