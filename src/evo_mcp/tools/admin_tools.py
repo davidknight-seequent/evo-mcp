@@ -791,11 +791,6 @@ def _inspect_parquet_file(blob_name: str, parquet_file: pq.ParquetFile, *, size_
     }
 
 
-def _inspect_parquet_bytes(blob_name: str, blob_bytes: bytes) -> dict[str, Any]:
-    parquet_file = pq.ParquetFile(pa.BufferReader(blob_bytes))
-    return _inspect_parquet_file(blob_name, parquet_file, size_bytes=len(blob_bytes))
-
-
 def _inspect_parquet_footer_bytes(
     blob_name: str,
     footer_bytes: bytes,
@@ -825,13 +820,10 @@ async def _inspect_parquet_metadata(
         max_bytes=PARQUET_FOOTER_SIZE,
     )
 
-    if footer_bytes.startswith(PARQUET_MAGIC):
-        return _inspect_parquet_bytes(blob_name, footer_bytes)
-
     if footer_status == 200:
         raise ValueError(
-            f"Server returned full response (HTTP 200) for Range request on blob '{blob_name}', "
-            f"but content does not start with Parquet magic bytes."
+            f"Server does not support Range requests for blob '{blob_name}' "
+            f"(returned HTTP 200 instead of 206). Cannot inspect Parquet metadata."
         )
 
     metadata_length = _parquet_footer_metadata_length(footer_bytes)
@@ -850,13 +842,10 @@ async def _inspect_parquet_metadata(
         max_bytes=metadata_and_footer_size,
     )
 
-    if tail_bytes.startswith(PARQUET_MAGIC):
-        return _inspect_parquet_bytes(blob_name, tail_bytes)
-
     if tail_status == 200:
         raise ValueError(
-            f"Server returned full response (HTTP 200) for Range request on blob '{blob_name}', "
-            f"but content does not start with Parquet magic bytes."
+            f"Server does not support Range requests for blob '{blob_name}' "
+            f"(returned HTTP 200 instead of 206). Cannot inspect Parquet metadata."
         )
 
     blob_size_bytes = _content_range_total_size(tail_headers) or _content_range_total_size(footer_headers)

@@ -15,7 +15,7 @@ import pyarrow.parquet as pq
 
 from evo_mcp.tools.admin_tools import (
     _download_blob_bytes,
-    _inspect_parquet_bytes,
+    _inspect_parquet_file,
     _resolve_object_side,
     register_admin_tools,
 )
@@ -47,7 +47,9 @@ def _parquet_bytes() -> bytes:
 
 class InspectParquetBytesTests(unittest.TestCase):
     def test_extracts_core_parquet_metadata(self) -> None:
-        result = _inspect_parquet_bytes("blob-a", _parquet_bytes())
+        blob_bytes = _parquet_bytes()
+        parquet_file = pq.ParquetFile(pa.BufferReader(blob_bytes))
+        result = _inspect_parquet_file("blob-a", parquet_file, size_bytes=len(blob_bytes))
 
         self.assertEqual("blob-a", result["blob_name"])
         self.assertEqual(3, result["num_rows"])
