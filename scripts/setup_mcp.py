@@ -6,7 +6,7 @@
 
 """
 Evo MCP Configuration Setup
-Cross-platform script to configure the Evo MCP server for VS Code or Cursor.
+Cross-platform script to configure the Evo MCP server for VS Code, Cursor, or Claude Desktop.
 """
 
 from __future__ import annotations
@@ -47,6 +47,7 @@ CLIENT_CHOICES = {
     "1": ClientChoice("VS Code", "vscode", "Code"),
     "2": ClientChoice("VS Code Insiders", "vscode", "Code - Insiders"),
     "3": ClientChoice("Cursor", "cursor", "Cursor"),
+    "4": ClientChoice("Claude Desktop", "claude", "Claude"),
 }
 
 DEFAULT_REDIRECT_URL = "http://localhost:3000/signin-callback"
@@ -133,8 +134,14 @@ def prompt_auth_method(current_value: str | None) -> str:
     print("2. Service account — no user sign-in (for automation/CI)")
     print()
 
+    AUTH_METHOD_LABELS = {
+        "native_app": "Sign in with your browser",
+        "client_credentials": "Service account",
+    }
+
     if current_value:
-        print(f"Current value: {current_value}")
+        label = AUTH_METHOD_LABELS.get(current_value, current_value)
+        print(f"Current value: {label}")
         if is_confirmed():
             return current_value
 
@@ -375,7 +382,7 @@ def get_protocol_choice(
     """Ask user which MCP protocol to use and configure HTTP if needed."""
     print()
     print("Which MCP transport protocol are you using?")
-    print("1. STDIO (recommended for VS Code/Cursor)")
+    print("1. STDIO (recommended for VS Code/Cursor/Claude Desktop)")
     print("2. Streamable HTTP (for testing, remote access, Docker)")
     print()
 
@@ -509,10 +516,34 @@ def get_cursor_config_dir(variant: str) -> Path | None:
     return None
 
 
+def get_claude_config_dir() -> Path | None:
+    """Get the Claude Desktop configuration directory for the current platform."""
+    system = platform.system()
+
+    if system == "Windows":
+        appdata = os.environ.get("APPDATA")
+        if not appdata:
+            return None
+        config_dir = Path(appdata) / "Claude"
+        return config_dir if config_dir.exists() else config_dir
+
+    if system == "Darwin":
+        config_dir = Path.home() / "Library" / "Application Support" / "Claude"
+        return config_dir if config_dir.exists() else config_dir
+
+    if system == "Linux":
+        config_dir = Path.home() / ".config" / "Claude"
+        return config_dir if config_dir.exists() else config_dir
+
+    return None
+
+
 def get_config_dir(client: ClientChoice) -> Path | None:
     """Resolve client config directory based on chosen app."""
     if client.client_type == "vscode":
         return get_vscode_config_dir(client.variant)
+    if client.client_type == "claude":
+        return get_claude_config_dir()
     return get_cursor_config_dir(client.variant)
 
 
@@ -585,7 +616,7 @@ def build_config_entry(
     env_values: dict[str, str],
 ) -> tuple[str, dict]:
     """Build client-specific MCP config entry and top-level key."""
-    if client.client_type == "cursor":
+    if client.client_type in ("cursor", "claude"):
         top_level_key = "mcpServers"
         if protocol == "http":
             host = env_values.get("MCP_HTTP_HOST", DEFAULT_HTTP_HOST)
@@ -623,7 +654,7 @@ def setup_mcp_config(
     if not config_dir:
         print_color(f"✗ Could not find {client.display_name} installation directory", Colors.RED)
         sys.exit(1)
-    config_file = config_dir / "mcp.json"
+    config_file = config_dir / ("claude_desktop_config.json" if client.client_type == "claude" else "mcp.json")
     print_color(f"Using user configuration for {client.display_name}", Colors.GREEN)
 
     print(f"Configuration file: {config_file}")
@@ -692,6 +723,8 @@ def setup_mcp_config(
 
         if client.client_type == "cursor":
             print("Restart Cursor or reload the window")
+        elif client.client_type == "claude":
+            print("Restart Claude Desktop")
         else:
             print("Restart VS Code or reload the window")
 
