@@ -731,27 +731,13 @@ def build_config_entry(
 
 
 def kill_claude_processes() -> None:
-    """Force-quit all running Claude Desktop processes so the app reloads config on next launch."""
-    system = platform.system()
+    """Force-quit Claude Desktop on Windows so it reloads config on next launch."""
     try:
-        if system == "Windows":
-            subprocess.run(
-                ["taskkill", "/F", "/IM", "Claude.exe"],
-                capture_output=True,
-                check=False,
-            )
-        elif system == "Darwin":
-            subprocess.run(
-                ["pkill", "-f", "Claude"],
-                capture_output=True,
-                check=False,
-            )
-        else:
-            subprocess.run(
-                ["pkill", "-f", "[Cc]laude"],
-                capture_output=True,
-                check=False,
-            )
+        subprocess.run(
+            ["taskkill", "/F", "/IM", "Claude.exe"],
+            capture_output=True,
+            check=False,
+        )
     except (OSError, ValueError):
         pass
 
@@ -760,7 +746,6 @@ def setup_mcp_config(
     client: ClientChoice,
     protocol: str,
     env_values: dict[str, str],
-    start_server_now: bool,
 ):
     """Set up the MCP configuration for the selected client app."""
     print_color("MCP Client Configuration", Colors.BLUE)
@@ -778,7 +763,7 @@ def setup_mcp_config(
         config_dirs = [config_dir] if config_dir else []
 
     if not config_dirs:
-        print_color(f"✗ Could not find {client.display_name} installation directory", Colors.RED)
+        print_color(f"✗ Could not find {client.display_name} configuration directory", Colors.RED)
         sys.exit(1)
 
     config_files = [
@@ -812,8 +797,6 @@ def setup_mcp_config(
                 print(f"Please fix the issue in: {config_file}")
                 sys.exit(1)
 
-        server_exit_code = None
-
         print_color("✓ Successfully added Evo MCP configuration", Colors.GREEN)
         print()
         print("Configuration details:")
@@ -831,7 +814,7 @@ def setup_mcp_config(
             print(f"    - URL: {http_url}")
         print()
         print("Next steps:")
-        if protocol == "http" and not start_server_now:
+        if protocol == "http":
             print("Start Evo MCP server manually:")
             print(f"  {python_exe} {mcp_script}")
 
@@ -852,13 +835,6 @@ def setup_mcp_config(
         print(f"  {python_exe}")
         print("If you need to use a different Python environment, activate it")
         print("and run this setup script again.")
-
-        if protocol == "http" and start_server_now:
-            print()
-            print_color("Starting Evo MCP HTTP server in foreground (Ctrl+C to stop)...", Colors.BLUE)
-            server_exit_code = start_http_server(python_exe, mcp_script, project_dir)
-            if server_exit_code not in [0, 130, None]:
-                print_color(f"✗ HTTP server exited with code {server_exit_code}", Colors.RED)
     except (IOError, OSError) as e:
         print_color(f"✗ Failed to update configuration file: {e}", Colors.RED)
         sys.exit(1)
@@ -899,7 +875,18 @@ def main():
                     f"Configuring client {index + 1} of {len(clients)}: {client.display_name}",
                     Colors.BLUE,
                 )
-            setup_mcp_config(client, protocol, env_values, start_server_now and index == 0)
+            setup_mcp_config(client, protocol, env_values, start_server_now=False)
+
+        if start_server_now:
+            print()
+            print_color("Starting Evo MCP HTTP server in foreground (Ctrl+C to stop)...", Colors.BLUE)
+            script_dir = Path(__file__).parent.resolve()
+            project_dir = script_dir.parent
+            python_exe = get_python_executable()
+            mcp_script = str(project_dir / "src" / "mcp_tools.py")
+            server_exit_code = start_http_server(python_exe, mcp_script, project_dir)
+            if server_exit_code not in [0, 130, None]:
+                print_color(f"✗ HTTP server exited with code {server_exit_code}", Colors.RED)
     except KeyboardInterrupt:
         print()
         print_color("Setup cancelled by user", Colors.RED)
