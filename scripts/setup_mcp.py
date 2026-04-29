@@ -103,13 +103,17 @@ def prompt_for_env_value(
     current_value: str | None,
     description: str,
     default: str = "",
+    sensitive: bool = False,
 ) -> str:
     """Prompt user for an environment variable value."""
     print()
     print(description)
 
     if current_value and "Replace this" not in current_value:
-        print_color(f"Current value: {current_value}", Colors.GREEN)
+        if sensitive:
+            print_color("Current value: (already configured)", Colors.GREEN)
+        else:
+            print_color(f"Current value: {current_value}", Colors.GREEN)
         if is_confirmed():
             return current_value
 
@@ -251,6 +255,12 @@ def write_env_file(project_dir: Path, values: dict[str, str]) -> None:
             if key in values:
                 lines[i] = f"{key}={values[key]}\n"
                 updated_keys.add(key)
+            # Insert EVO_CLIENT_SECRET immediately after EVO_CLIENT_ID if not already present
+            if key == "EVO_CLIENT_ID" and "EVO_CLIENT_SECRET" in values and "EVO_CLIENT_SECRET" not in updated_keys:
+                next_key = lines[i + 1].split("=", 1)[0].strip() if i + 1 < len(lines) else ""
+                if next_key != "EVO_CLIENT_SECRET":
+                    lines.insert(i + 1, f"EVO_CLIENT_SECRET={values['EVO_CLIENT_SECRET']}\n")
+                updated_keys.add("EVO_CLIENT_SECRET")
 
     for key, value in values.items():
         if key not in updated_keys:
@@ -270,17 +280,20 @@ def configure_env_settings(project_dir: Path) -> dict[str, str]:
 
     new_values["AUTH_METHOD"] = prompt_auth_method(current_values.get("AUTH_METHOD"))
 
+    client_id_current = current_values.get("EVO_CLIENT_ID")
     new_values["EVO_CLIENT_ID"] = prompt_for_env_value(
         "EVO_CLIENT_ID",
-        current_values.get("EVO_CLIENT_ID"),
+        client_id_current,
         "Your Evo application client ID from the iTwin Developer Portal.",
     )
+    client_id_changed = new_values["EVO_CLIENT_ID"] != client_id_current
 
     if new_values["AUTH_METHOD"] == "client_credentials":
         new_values["EVO_CLIENT_SECRET"] = prompt_for_env_value(
             "EVO_CLIENT_SECRET",
-            mask_value(current_values.get("EVO_CLIENT_SECRET")),
+            None if client_id_changed else current_values.get("EVO_CLIENT_SECRET"),
             "Your Evo application client secret from the iTwin Developer Portal.",
+            sensitive=True,
         )
     else:
         new_values["EVO_REDIRECT_URL"] = prompt_for_env_value(
@@ -358,7 +371,7 @@ def start_http_server(python_exe: str, mcp_script: str, project_dir: Path) -> in
         return None
 
 
-def get_client_choice(protocol: str) -> ClientChoice:
+def get_client_choice(protocol: str) -> ClientChoice | None:
     """Ask user which client app to configure."""
     print("Which client app are you using?")
 
@@ -368,13 +381,17 @@ def get_client_choice(protocol: str) -> ClientChoice:
     for key, client in ordered_choices:
         print(f"{key}. {client.display_name}")
 
+    skip_key = str(max(int(k) for k, _ in ordered_choices) + 1)
+    print(f"{skip_key}. Skip client configuration")
     print()
 
-    choice_keys = {key for key, _ in ordered_choices}
+    choice_keys = {key for key, _ in ordered_choices} | {skip_key}
     choice_list = ", ".join(sorted(choice_keys, key=int))
 
     while True:
         choice = input(f"Enter your choice [{choice_list}]: ").strip()
+        if choice == skip_key:
+            return None
         if choice in choice_keys:
             return CLIENT_CHOICES[choice]
         print_color(f"Invalid choice. Please enter one of: {choice_list}.", Colors.RED)
@@ -392,6 +409,9 @@ def get_client_choices(protocol: str) -> list[ClientChoice]:
     while True:
         print()
         client = get_client_choice(protocol)
+
+        if client is None:
+            return selected_clients
 
         matching_key = next(key for key, value in available_choices.items() if value is client)
         if matching_key in selected_keys:
@@ -856,6 +876,9 @@ def main():
         start_server_now = False
         if protocol == "http":
             start_server_now = get_start_server_choice()
+
+        if not clients:
+            print_color("No client apps configured. You can run this script again to configure a client.", Colors.BLUE)
 
         for index, client in enumerate(clients):
             print()

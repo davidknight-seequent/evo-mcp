@@ -422,10 +422,11 @@ Claude Desktop reads MCP server configuration from a JSON file on disk.
 1. Open the Claude Desktop configuration file:
    - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
    If the file does not exist, create it.
 
-2. Add the Evo MCP server entry. Update the paths to match your local installation:
+2. Add the Evo MCP server entry. Copy the settings found in `templates/claude-stdio-config.json` and update the paths to match your local installation:
 
    **macOS/Linux:**
    ```json
