@@ -255,12 +255,14 @@ def write_env_file(project_dir: Path, values: dict[str, str]) -> None:
             if key in values:
                 lines[i] = f"{key}={values[key]}\n"
                 updated_keys.add(key)
-            # Insert EVO_CLIENT_SECRET immediately after EVO_CLIENT_ID if not already present
+            # Insert EVO_CLIENT_SECRET immediately after EVO_CLIENT_ID if it doesn't exist anywhere in the file
             if key == "EVO_CLIENT_ID" and "EVO_CLIENT_SECRET" in values and "EVO_CLIENT_SECRET" not in updated_keys:
-                next_key = lines[i + 1].split("=", 1)[0].strip() if i + 1 < len(lines) else ""
-                if next_key != "EVO_CLIENT_SECRET":
+                secret_exists_in_file = any(
+                    "=" in ln and ln.strip().split("=", 1)[0].strip() == "EVO_CLIENT_SECRET" for ln in lines
+                )
+                if not secret_exists_in_file:
                     lines.insert(i + 1, f"EVO_CLIENT_SECRET={values['EVO_CLIENT_SECRET']}\n")
-                updated_keys.add("EVO_CLIENT_SECRET")
+                    updated_keys.add("EVO_CLIENT_SECRET")
 
     for key, value in values.items():
         if key not in updated_keys:
@@ -389,7 +391,9 @@ def get_client_choice(protocol: str) -> ClientChoice | None:
     choice_list = ", ".join(sorted(choice_keys, key=int))
 
     while True:
-        choice = input(f"Enter your choice [{choice_list}]: ").strip()
+        choice = input(f"Enter your choice [{choice_list}] (default: {skip_key}): ").strip()
+        if not choice:
+            return None
         if choice == skip_key:
             return None
         if choice in choice_keys:
