@@ -284,7 +284,12 @@ def configure_env_settings(project_dir: Path) -> dict[str, str]:
     ensure_env_file_exists(project_dir)
     current_values = load_env_file(project_dir)
 
-    new_values = current_values.copy()
+    new_values: dict[str, str] = {}
+
+    # Carry forward transport-related keys so get_protocol_choice() can display current values
+    for key in ("MCP_TRANSPORT", "MCP_HTTP_HOST", "MCP_HTTP_PORT"):
+        if key in current_values:
+            new_values[key] = current_values[key]
 
     new_values["AUTH_METHOD"] = prompt_auth_method(current_values.get("AUTH_METHOD"))
 
