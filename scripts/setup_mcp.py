@@ -250,15 +250,21 @@ def write_env_file(project_dir: Path, values: dict[str, str]) -> None:
         if not stripped or stripped.startswith("#"):
             continue
 
-        if "=" in stripped:
-            key = stripped.split("=", 1)[0].strip()
+        key_line = stripped
+        if key_line.startswith("export "):
+            key_line = key_line[len("export ") :].strip()
+
+        if "=" in key_line:
+            key = key_line.split("=", 1)[0].strip()
             if key in values:
                 lines[i] = f"{key}={values[key]}\n"
                 updated_keys.add(key)
             # Insert EVO_CLIENT_SECRET immediately after EVO_CLIENT_ID if it doesn't exist anywhere in the file
             if key == "EVO_CLIENT_ID" and "EVO_CLIENT_SECRET" in values and "EVO_CLIENT_SECRET" not in updated_keys:
                 secret_exists_in_file = any(
-                    "=" in ln and ln.strip().split("=", 1)[0].strip() == "EVO_CLIENT_SECRET" for ln in lines
+                    "=" in ln
+                    and ln.strip().removeprefix("export ").strip().split("=", 1)[0].strip() == "EVO_CLIENT_SECRET"
+                    for ln in lines
                 )
                 if not secret_exists_in_file:
                     lines.insert(i + 1, f"EVO_CLIENT_SECRET={values['EVO_CLIENT_SECRET']}\n")
@@ -865,7 +871,10 @@ def main():
         if protocol == "http":
             start_server_now = get_start_server_choice()
 
-        python_exe = choose_python_executable(get_python_executable())
+        if clients or start_server_now:
+            python_exe = choose_python_executable(get_python_executable())
+        else:
+            python_exe = get_python_executable()
 
         if not clients:
             print_color("No client apps configured. You can run this script again to configure a client.", Colors.BLUE)
