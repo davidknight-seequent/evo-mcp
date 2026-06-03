@@ -101,7 +101,7 @@ flowchart LR
 ## Getting started
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.10 to 3.13
 - Access to Seequent Evo (https://evo.seequent.com)
 
 ### Installation 
@@ -140,6 +140,15 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```bash
 uv sync
 ```
+
+##### c. Run the MCP server with `uvx`
+After `uv sync`, you can launch the packaged server directly from the repository checkout:
+
+```bash
+uvx --from . evo-mcp
+```
+
+When using `uvx`, you can either export Evo MCP settings in your shell or pass them via your MCP client's `env` configuration block. The packaged server currently supports Python 3.10 to 3.13, and `uvx` will select a compatible interpreter from that range.
 
 <strong>Option 2: Using `pip` and `pyenv`</strong>
 
@@ -370,6 +379,7 @@ python scripts/setup_mcp.py
 **Manual method**
 1. Copy the settings found in `templates/vscode-stdio-config.json`.
   - For HTTP mode, use `templates/vscode-http-config.json` instead.
+  - The STDIO template uses `uvx` and passes Evo MCP settings through the MCP `env` block; update the repository path and env values to match your installation.
   - Update the template URL host and port to match `MCP_HTTP_HOST` and `MCP_HTTP_PORT` in your `.env`, and ensure the HTTP server is running.
 2. Open the **Command Palette** (press `Cmd+Shift+P` on macOS / `Ctrl+Shift+P` on Windows/Linux).
 3. Search for "mcp". Select **MCP: Open User Configuration** to update the user settings.
@@ -418,6 +428,7 @@ python scripts/setup_mcp.py
 #### Manual method
 1. Copy the settings found in `templates/cursor-stdio-config.json`.
   - For HTTP mode, use `templates/cursor-http-config.json` instead.
+  - The STDIO template uses `uvx` and passes Evo MCP settings through the MCP `env` block; update the repository path and env values to match your installation.
   - Update the template URL host and port to match `MCP_HTTP_HOST` and `MCP_HTTP_PORT` in your `.env`, and ensure the HTTP server is running.
 2. Open the **Command Palette** (press `Cmd+Shift+P` on macOS / `Ctrl+Shift+P` on Windows/Linux).
 3. Search for "mcp". Select **View: Open MCP Settings** to update the user settings.

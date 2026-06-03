@@ -52,6 +52,21 @@ DEFAULT_HTTP_HOST = "localhost"
 DEFAULT_HTTP_PORT = "5000"
 TOOL_FILTER_CHOICES = {"1": "all", "2": "admin", "3": "data", "4": "compute"}
 AUTH_METHOD_CHOICES = {"1": "native_app", "2": "client_credentials"}
+STDIO_CONFIG_ENV_KEYS = [
+    "DEBUG",
+    "MCP_TRANSPORT",
+    "AUTH_METHOD",
+    "EVO_CLIENT_ID",
+    "EVO_CLIENT_SECRET",
+    "EVO_REDIRECT_URL",
+    "CLIENT_DELEGATED_AUTH",
+    "MCP_TOOL_FILTER",
+    "EVO_LOCAL_DATA_DIR",
+    "ISSUER_URL",
+    "EVO_DISCOVERY_URL",
+    "SESSION_TTL_SECONDS",
+    "MAX_SESSIONS",
+]
 
 
 def mask_value(value: str, visible: int = 3) -> str:
@@ -337,6 +352,17 @@ def get_http_env_from_dotenv(project_dir: Path) -> dict[str, str] | None:
     }
 
 
+def build_stdio_config_env(env_values: dict[str, str]) -> dict[str, str]:
+    """Build the environment block used by STDIO MCP client configs."""
+    stdio_env = {}
+    for key in STDIO_CONFIG_ENV_KEYS:
+        value = env_values.get(key)
+        if value:
+            stdio_env[key] = value
+    stdio_env["MCP_TRANSPORT"] = "stdio"
+    return stdio_env
+
+
 def resolve_command_path(command: str, project_dir: Path) -> str:
     """Resolve relative command/script paths against project directory."""
     command_path = Path(command)
@@ -619,8 +645,10 @@ def build_config_entry(
     python_exe: str,
     mcp_script: str,
     env_values: dict[str, str],
+    project_dir: Path,
 ) -> tuple[str, dict]:
     """Build client-specific MCP config entry and top-level key."""
+    stdio_env = build_stdio_config_env(env_values)
     if client.client_type == "cursor":
         top_level_key = "mcpServers"
         if protocol == "http":
@@ -628,7 +656,11 @@ def build_config_entry(
             port = env_values.get("MCP_HTTP_PORT", DEFAULT_HTTP_PORT)
             entry = {"type": "http", "url": f"http://{host}:{port}/mcp"}
         else:
-            entry = {"command": python_exe, "args": [mcp_script]}
+            entry = {
+                "command": "uvx",
+                "args": ["--from", str(project_dir), "evo-mcp"],
+                "env": stdio_env,
+            }
         return top_level_key, entry
 
     top_level_key = "servers"
@@ -637,7 +669,12 @@ def build_config_entry(
         port = env_values.get("MCP_HTTP_PORT", DEFAULT_HTTP_PORT)
         entry = {"type": "http", "url": f"http://{host}:{port}/mcp"}
     else:
-        entry = {"type": "stdio", "command": python_exe, "args": [mcp_script]}
+        entry = {
+            "type": "stdio",
+            "command": "uvx",
+            "args": ["--from", str(project_dir), "evo-mcp"],
+            "env": stdio_env,
+        }
     return top_level_key, entry
 
 
@@ -654,6 +691,8 @@ def setup_mcp_config(
 
     script_dir = Path(__file__).parent.resolve()
     project_dir = script_dir.parent
+    runtime_env_values = load_env_file(project_dir)
+    runtime_env_values.update(env_values)
 
     config_dir = get_config_dir(client)
     if not config_dir:
@@ -691,7 +730,8 @@ def setup_mcp_config(
         protocol,
         python_exe,
         mcp_script,
-        env_values,
+        runtime_env_values,
+        project_dir,
     )
 
     if top_level_key not in settings:
@@ -709,9 +749,14 @@ def setup_mcp_config(
         print()
         print("Configuration details:")
         print(f"  Client App: {client.display_name}")
-        print(f"  Command: {python_exe}")
-        print(f"  Script: {mcp_script}")
         print(f"  Transport Protocol: {protocol.upper()}")
+        if protocol == "stdio":
+            print("  Command: uvx")
+            print(f"  Args: --from {project_dir} evo-mcp")
+            print("  Environment: written directly into the MCP config")
+        else:
+            print(f"  Command: {python_exe}")
+            print(f"  Script: {mcp_script}")
         if protocol == "http":
             http_host = env_values.get("MCP_HTTP_HOST", DEFAULT_HTTP_HOST)
             http_port = env_values.get("MCP_HTTP_PORT", DEFAULT_HTTP_PORT)
@@ -732,10 +777,14 @@ def setup_mcp_config(
             print("Restart VS Code or reload the window")
 
         print()
-        print("Note: This configuration uses the Python interpreter:")
-        print(f"  {python_exe}")
-        print("If you need to use a different Python environment, activate it")
-        print("and run this setup script again.")
+        if protocol == "stdio":
+            print("Note: STDIO configuration uses uvx to launch the installed package")
+            print("from this repository path and passes Evo MCP settings via the MCP env block.")
+        else:
+            print("Note: This configuration uses the Python interpreter:")
+            print(f"  {python_exe}")
+            print("If you need to use a different Python environment, activate it")
+            print("and run this setup script again.")
 
         if protocol == "http" and start_server_now:
             print()

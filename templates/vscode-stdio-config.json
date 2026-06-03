@@ -2,8 +2,15 @@
 	"servers": {
 		"evo-mcp": {
 			"type": "stdio",
-			"command": "c:\\Dev\\evo-mcp\\.venv\\Scripts\\python.exe",
-			"args": ["c:\\Dev\\evo-mcp\\src\\mcp_tools.py"]
+			"command": "uvx",
+			"args": ["--from", "c:\\Dev\\evo-mcp", "evo-mcp"],
+			"env": {
+				"MCP_TRANSPORT": "stdio",
+				"AUTH_METHOD": "native_app",
+				"EVO_CLIENT_ID": "your-client-id",
+				"EVO_REDIRECT_URL": "http://localhost:3000/signin-callback",
+				"MCP_TOOL_FILTER": "all"
+			}
 		}
 	}
 }

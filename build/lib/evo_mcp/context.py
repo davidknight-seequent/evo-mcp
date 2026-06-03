@@ -17,11 +17,33 @@ See ``evo_mcp/contexts/`` for the class implementations:
 import asyncio
 import logging
 import os
+from pathlib import Path
 
 from cachetools import TTLCache
+from dotenv import load_dotenv
 
 from evo_mcp.contexts import DelegatedAuthContext, EvoContextBase, ManagedAuthContext
 from evo_mcp.contexts.helpers import get_client_session_id
+
+
+def _load_runtime_env() -> None:
+    """Load environment variables from an explicit path or common local fallbacks."""
+    env_file = os.getenv("EVO_MCP_ENV_FILE")
+    if env_file:
+        load_dotenv(dotenv_path=env_file)
+        return
+
+    env_candidates = [
+        Path.cwd() / ".env",
+        Path(__file__).parent.parent.parent / ".env",
+    ]
+    for candidate in env_candidates:
+        if candidate.exists():
+            load_dotenv(dotenv_path=candidate)
+            return
+
+
+_load_runtime_env()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG if os.environ.get("DEBUG") == "1" else logging.INFO)
