@@ -40,16 +40,21 @@ def test_discover_without_argument_lists_object_types():
     assert {"variogram", "point_set"} <= types
     # Each entry advertises its lifecycle capabilities.
     sample = payload["object_types"][0]
-    assert {"object_type", "display_name", "supports_import", "publish_modes"} <= sample.keys()
+    assert {"object_type", "display_name", "supports_create", "supports_import", "publish_modes"} <= sample.keys()
+    capabilities = {item["object_type"]: item["supports_create"] for item in payload["object_types"]}
+    assert capabilities["block_model"] is False
+    assert capabilities["variogram"] is True
 
 
 def test_discover_with_object_type_lists_interactions():
     mcp = _build_staging_server()
-    object_type = _call(mcp)["object_types"][0]["object_type"]
-    payload = _call(mcp, object_type=object_type)
-    assert payload["object_type"] == object_type
+    payload = _call(mcp, object_type="variogram")
+    assert payload["object_type"] == "variogram"
     assert "display_name" in payload
-    assert isinstance(payload["interactions"], list)
+    interactions = {item["name"]: item for item in payload["interactions"]}
+    assert "get_structure_details" in interactions
+    assert "parameters_schema" in interactions["get_structure_details"]
+    assert "structure_index" in interactions["get_structure_details"]["parameters_schema"]["properties"]
 
 
 def test_old_discovery_tools_are_removed():

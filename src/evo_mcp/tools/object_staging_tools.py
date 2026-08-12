@@ -60,8 +60,9 @@ def register_object_staging_tools(mcp) -> None:
         Two modes:
 
         - **No argument** — lists every object type that can be staged, each with
-          its supported lifecycle operations: ``create`` (local build), ``import``
-          (from Evo), and ``publish`` modes back to Evo. Returns ``{"object_types": [...]}``.
+          its supported lifecycle capabilities: ``supports_create`` for local
+          creation, ``supports_import`` for import from Evo, and ``publish_modes``
+          for publishing back to Evo. Returns ``{"object_types": [...]}``.
         - **``object_type`` given** — lists the interactions available for that
           type (name, description, and accepted parameters), which is the schema
           you pass to ``staging_invoke_interaction``. Returns
@@ -79,6 +80,7 @@ def register_object_staging_tools(mcp) -> None:
                     {
                         "object_type": t.object_type,
                         "display_name": t.display_name,
+                        "supports_create": t.supports_create,
                         "supports_import": is_evo and t.evo_class is not None,
                         "publish_modes": sorted(t.supported_publish_modes) if is_evo else [],
                     }
@@ -104,15 +106,16 @@ def register_object_staging_tools(mcp) -> None:
 
         Discover-then-invoke: call ``staging_discover(object_type)`` first to get
         the available ``interaction_name`` values and each one's parameter schema,
-        then pass that schema here as ``params``. ``params`` is an interaction-
-        specific dict (its shape comes from discovery, not from this signature).
+        then pass parameter values here as ``params``. The values must conform to
+        the discovered schema; do not pass the schema object itself.
 
         Args:
             object_name: Name of the staged object in the session registry.
             interaction_name: Name of the interaction to invoke. Use
                 ``staging_discover(object_type)`` to discover available names.
-            params: Parameters for the interaction, matching the schema returned by
-                ``staging_discover(object_type)`` for this interaction.
+            params: Parameter values for the interaction, matching the
+                ``parameters_schema`` returned by ``staging_discover(object_type)``
+                for this interaction.
         """
         evo_context = await get_evo_context()
         try:

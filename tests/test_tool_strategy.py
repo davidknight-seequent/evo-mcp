@@ -12,16 +12,12 @@ import pytest
 from fastmcp import FastMCP
 
 from evo_mcp.tool_strategy import (
+    BOOTSTRAP_TOOLS,
     SearchEngine,
     ToolStrategy,
     apply_strategy,
 )
 from evo_mcp.tools import register_general_tools, register_object_staging_tools
-
-# The bootstrap tools pinned by mcp_tools.py so agents can always find their
-# entry point regardless of strategy. Kept in sync with mcp_tools.apply_strategy.
-# staging_discover is the always-visible entry to the staging lifecycle.
-BOOTSTRAP_TOOLS = ["select_instance", "list_my_instances", "staging_discover"]
 
 
 def _build_server() -> FastMCP:

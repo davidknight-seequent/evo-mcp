@@ -30,6 +30,8 @@ from fastmcp.server.transforms.search import BM25SearchTransform, RegexSearchTra
 
 logger = logging.getLogger(__name__)
 
+BOOTSTRAP_TOOLS = ["select_instance", "list_my_instances", "staging_discover"]
+
 
 class ToolStrategy(str, Enum):
     """How the tool catalog is exposed to the LLM."""

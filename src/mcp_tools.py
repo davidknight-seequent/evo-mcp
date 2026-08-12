@@ -36,7 +36,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from evo_mcp.client_auth import AuthMetadataPatchMiddleware, create_auth_provider
-from evo_mcp.tool_strategy import SearchEngine, ToolStrategy, apply_strategy
+from evo_mcp.tool_strategy import BOOTSTRAP_TOOLS, SearchEngine, ToolStrategy, apply_strategy
 from evo_mcp.tools import (
     register_admin_tools,
     register_compute_tools,
@@ -221,7 +221,7 @@ applied_strategy = apply_strategy(
     mcp,
     TOOL_STRATEGY,
     search_engine=SEARCH_ENGINE,
-    always_visible=["select_instance", "list_my_instances", "staging_discover"],
+    always_visible=BOOTSTRAP_TOOLS,
 )
 print(f"Tool exposure strategy: {applied_strategy.value}")
 
