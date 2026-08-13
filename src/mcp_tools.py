@@ -36,7 +36,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from evo_mcp.client_auth import AuthMetadataPatchMiddleware, create_auth_provider
-from evo_mcp.tool_strategy import SearchEngine, ToolStrategy, apply_strategy
+from evo_mcp.tool_strategy import BOOTSTRAP_TOOLS, SearchEngine, ToolStrategy, apply_strategy
 from evo_mcp.tools import (
     register_admin_tools,
     register_compute_tools,
@@ -194,7 +194,9 @@ if TOOL_FILTER in ["all", "compute"]:
 # MCP_SEARCH_ENGINE ("bm25" | "regex") tunes the tool-search ranking engine.
 #
 # Bootstrap tools are pinned via always_visible so agents can always find their
-# entry point regardless of strategy.
+# entry point regardless of strategy. staging_discover is the always-visible entry
+# to the stateful staging lifecycle (its discover-then-invoke flow cannot be
+# collapsed by tool-search), so it stays reachable without a search round-trip.
 _TOOL_STRATEGY_RAW = os.getenv("MCP_TOOL_STRATEGY", ToolStrategy.TOOL_SEARCH.value).strip().lower()
 try:
     TOOL_STRATEGY = ToolStrategy(_TOOL_STRATEGY_RAW)
@@ -219,7 +221,7 @@ applied_strategy = apply_strategy(
     mcp,
     TOOL_STRATEGY,
     search_engine=SEARCH_ENGINE,
-    always_visible=["select_instance", "list_my_instances"],
+    always_visible=BOOTSTRAP_TOOLS,
 )
 print(f"Tool exposure strategy: {applied_strategy.value}")
 

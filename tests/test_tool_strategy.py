@@ -12,15 +12,12 @@ import pytest
 from fastmcp import FastMCP
 
 from evo_mcp.tool_strategy import (
+    BOOTSTRAP_TOOLS,
     SearchEngine,
     ToolStrategy,
     apply_strategy,
 )
-from evo_mcp.tools import register_general_tools
-
-# The bootstrap tools pinned by mcp_tools.py so agents can always find their
-# entry point regardless of strategy. Kept in sync with mcp_tools.apply_strategy.
-BOOTSTRAP_TOOLS = ["select_instance", "list_my_instances"]
+from evo_mcp.tools import register_general_tools, register_object_staging_tools
 
 
 def _build_server() -> FastMCP:
@@ -139,10 +136,12 @@ def test_unhandled_strategy_raises():
 def test_real_bootstrap_tools_stay_pinned_under_tool_search():
     # Guardrail against the mock tests' blind spot: if a real bootstrap tool is
     # renamed, the always_visible list in mcp_tools.py would silently stop pinning
-    # it. Register the real general tools and assert the pinned names still exist
-    # and remain directly visible when the catalog is hidden behind search.
+    # it. Register the real general + staging tools and assert the pinned names
+    # still exist and remain directly visible when the catalog is hidden behind
+    # search.
     mcp = FastMCP("test-server")
     register_general_tools(mcp)
+    register_object_staging_tools(mcp)
     apply_strategy(mcp, ToolStrategy.TOOL_SEARCH, always_visible=BOOTSTRAP_TOOLS)
     names = _visible_tool_names(mcp)
     for tool_name in BOOTSTRAP_TOOLS:

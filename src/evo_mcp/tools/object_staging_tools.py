@@ -6,18 +6,20 @@
 
 All domain actions go through two generic tools:
 
-  - staging_list_interactions  — list interactions available for an object type
+  - staging_discover           — discover stageable object types, or the
+                                 interactions available for one type
   - staging_invoke_interaction — call an interaction on a staged object by name
 
 Lifecycle tools that bring objects into/out of staging:
 
-  - staging_list_object_types  — discover all stageable object types and their
-                                 supported lifecycle operations
   - staging_import_object      — import an object from Evo into the session
   - staging_publish_object     — push a staged object back to Evo
   - staging_create_object      — create a new staged object locally
   - staging_discard_object     — remove a staged object from the session
   - staging_list               — list all staged objects in the session
+
+Discover the stageable object types and their supported lifecycle operations via
+``staging_discover()`` (no argument).
 
 Object-type-specific logic (SDK calls, CRS coercion, etc.) lives in the
 object type modules under ``evo_mcp.staging.objects``, not here.
@@ -48,40 +50,43 @@ def register_object_staging_tools(mcp) -> None:
     # ── Discovery ─────────────────────────────────────────────────────────────
 
     @mcp.tool()
-    async def staging_list_object_types() -> dict[str, Any]:
-        """List all object types that can be staged in this session.
+    async def staging_discover(object_type: str | None = None) -> dict[str, Any]:
+        """Discover stageable object types, or the interactions for one type.
 
-        Returns each type with its supported lifecycle operations: ``create``
-        (local build), ``import`` (from Evo), and ``publish`` modes back to Evo.
+        This is the single entry point for staging discovery — call it first, then
+        act with ``staging_invoke_interaction`` / ``staging_create_object`` /
+        ``staging_import_object`` / ``staging_publish_object``.
 
-        Use ``staging_list_interactions`` with an ``object_type`` to see the
-        interactions available once an object of that type is staged.
-        """
-        result = []
-        for t in staged_object_type_registry.all():
-            is_evo = isinstance(t, EvoStagedObjectType)
-            result.append(
-                {
-                    "object_type": t.object_type,
-                    "display_name": t.display_name,
-                    "supports_import": is_evo and t.evo_class is not None,
-                    "publish_modes": sorted(t.supported_publish_modes) if is_evo else [],
-                }
-            )
-        return {"object_types": result}
+        Two modes:
 
-    @mcp.tool()
-    async def staging_list_interactions(object_type: str) -> dict[str, Any]:
-        """List all interactions available for a staged object type.
-
-        Returns each interaction name, description, and accepted parameters.
-        Use ``staging_invoke_interaction`` to call any listed interaction on a
-        staged object by name.
+        - **No argument** — lists every object type that can be staged, each with
+          its supported lifecycle capabilities: ``supports_create`` for local
+          creation, ``supports_import`` for import from Evo, and ``publish_modes``
+          for publishing back to Evo. Returns ``{"object_types": [...]}``.
+        - **``object_type`` given** — lists the interactions available for that
+          type (name, description, and accepted parameters), which is the schema
+          you pass to ``staging_invoke_interaction``. Returns
+          ``{"object_type": ..., "display_name": ..., "interactions": [...]}``.
 
         Args:
-            object_type: The object type identifier. Use ``staging_list_object_types``
-                         to discover valid types.
+            object_type: Optional object type identifier (e.g. ``variogram``,
+                ``search_neighborhood``). Omit to list all stageable types first.
         """
+        if object_type is None:
+            result = []
+            for t in staged_object_type_registry.all():
+                is_evo = isinstance(t, EvoStagedObjectType)
+                result.append(
+                    {
+                        "object_type": t.object_type,
+                        "display_name": t.display_name,
+                        "supports_create": t.supports_create,
+                        "supports_import": is_evo and t.evo_class is not None,
+                        "publish_modes": sorted(t.supported_publish_modes) if is_evo else [],
+                    }
+                )
+            return {"object_types": result}
+
         staged_type = staged_object_type_registry.get(object_type)
         return {
             "object_type": object_type,
@@ -99,14 +104,18 @@ def register_object_staging_tools(mcp) -> None:
     ) -> dict[str, Any]:
         """Invoke a named interaction on a staged object.
 
-        Use ``staging_list_interactions`` first to discover available interactions
-        and their parameters for a given object type.
+        Discover-then-invoke: call ``staging_discover(object_type)`` first to get
+        the available ``interaction_name`` values and each one's parameter schema,
+        then pass parameter values here as ``params``. The values must conform to
+        the discovered schema; do not pass the schema object itself.
 
         Args:
             object_name: Name of the staged object in the session registry.
-            interaction_name: Name of the interaction to invoke. Use ``staging_list_interactions``
-                              to discover available names.
-            params: Optional parameters for the interaction (depends on interaction).
+            interaction_name: Name of the interaction to invoke. Use
+                ``staging_discover(object_type)`` to discover available names.
+            params: Parameter values for the interaction, matching the
+                ``parameters_schema`` returned by ``staging_discover(object_type)``
+                for this interaction.
         """
         evo_context = await get_evo_context()
         try:
@@ -132,8 +141,8 @@ def register_object_staging_tools(mcp) -> None:
     ) -> dict[str, Any]:
         """Create a new staged object of the given type.
 
-        Each object type has a single create path. Use ``staging_list_object_types``
-        to discover valid types and ``staging_list_interactions`` to see what
+        Each object type has a single create path. Use ``staging_discover()`` to
+        discover valid types and ``staging_discover(object_type)`` to see what
         instance interactions are available after creation.
 
         Args:
@@ -213,7 +222,7 @@ def register_object_staging_tools(mcp) -> None:
         """Import a published object from Evo into the session.
 
         The object type is detected automatically from the Evo schema.
-        Use ``staging_list_object_types`` to see which types support import.
+        Use ``staging_discover()`` to see which types support import.
         """
         context = await get_workspace_context(workspace_id)
         try:
@@ -279,7 +288,7 @@ def register_object_staging_tools(mcp) -> None:
         """Publish a staged object to Evo.
 
         The object type is detected automatically from the staged payload.
-        Use ``staging_list_object_types`` to check which publish modes an object type supports.
+        Use ``staging_discover()`` to check which publish modes an object type supports.
 
         - mode='create': Creates a new Evo object. Requires object_path.
         - mode='new_version': Publishes as a new version of an existing object.

@@ -5,7 +5,7 @@ Instead of one MCP tool per capability per type, **all domain actions go through
 ```mermaid
 flowchart LR
     subgraph DISCOVER["Step 1 — Discover"]
-        T1["staging_list_interactions\nobject_type='variogram'"]
+        T1["staging_discover\nobject_type='variogram'"]
         OUT1["get_summary\nget_structure_details\nget_search_parameters\nget_ellipsoid_details\nget_curve_details"]
         T1 -->|"returns available actions\n+ param schemas"| OUT1
     end

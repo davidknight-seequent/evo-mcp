@@ -87,6 +87,8 @@ class StagedObjectType(abc.ABC):
     - ``_validate`` — raise ``StageValidationError`` for domain-level payload
       constraints (called after the data_class type-check by ``validate``).
     - ``from_dict`` — deserialize a fixture dict into a typed payload.
+    - ``create`` — provide local creation support. ``supports_create`` is
+      derived automatically from this override.
 
     Create interactions are registered in ``__init__`` via ``_register_interaction``.
     """
@@ -97,6 +99,11 @@ class StagedObjectType(abc.ABC):
 
     def __init__(self) -> None:
         self._interactions: dict[str, Interaction] = {}
+
+    @property
+    def supports_create(self) -> bool:
+        """Whether this type provides a concrete local creation implementation."""
+        return type(self).create is not StagedObjectType.create
 
     def validate(self, payload: Any) -> None:
         """Validate a payload: type-check against ``data_class``, then domain rules."""
