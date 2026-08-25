@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json as _json
 import logging
 import os
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -12,7 +11,6 @@ from evo.oauth import EvoScopes
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
 _SILENT_AUTH_ERRORS = frozenset(
@@ -116,110 +114,3 @@ def create_auth_provider(base_url: str):
         # See: https://github.com/PrefectHQ/fastmcp/issues/3939
         forward_resource=False,
     )
-
-
-# ---------------------------------------------------------------------------
-# ASGI Middleware: patch OAuth metadata for public MCP clients
-# ---------------------------------------------------------------------------
-# FastMCP's built-in OAuth metadata endpoint only advertises
-# ["client_secret_post", "client_secret_basic"] in
-# token_endpoint_auth_methods_supported.  However, public MCP clients
-# (VS Code Copilot, Claude Code, etc.) register via DCR with
-# token_endpoint_auth_method: "none" because they don't possess a client
-# secret.  Without "none" in the metadata, compliant clients may refuse to
-# authenticate.
-#
-# This middleware intercepts GET /.well-known/oauth-authorization-server
-# responses and appends "none" to the list.
-#
-# Remove this middleware once the MCP Python SDK includes "none" natively
-# in build_metadata(). Fix merged but not yet released in mcp>=1.27.0.
-# Upstream: https://github.com/modelcontextprotocol/python-sdk/issues/2260
-# ---------------------------------------------------------------------------
-
-
-class AuthMetadataPatchMiddleware:
-    """ASGI middleware that patches OAuth metadata to include ``"none"``
-    in ``token_endpoint_auth_methods_supported``.
-
-    Required for public MCP clients (VS Code, Claude Code) that use
-    ``token_endpoint_auth_method: "none"`` during Dynamic Client Registration.
-    FastMCP only advertises ``["client_secret_post", "client_secret_basic"]``.
-
-    **When to remove:** once the ``mcp`` SDK (>=1.26.0 successor) includes
-    ``"none"`` in ``build_metadata()``. Tracked in
-    `python-sdk#2260 <https://github.com/modelcontextprotocol/python-sdk/issues/2260>`_.
-    """
-
-    def __init__(self, app: ASGIApp) -> None:
-        self.app = app
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        path = scope.get("path", "")
-        method = scope.get("method", "?")
-        logger.debug("[req] %s %s", method, path)
-
-        if not path.startswith("/.well-known/oauth-authorization-server"):
-            await self.app(scope, receive, send)
-            return
-
-        # Capture response body, patch token_endpoint_auth_methods_supported
-        response_body = bytearray()
-        response_started = False
-        original_headers: list = []
-        original_status = 200
-
-        async def capture_send(message):
-            nonlocal response_started, original_headers, original_status
-            if message["type"] == "http.response.start":
-                response_started = True
-                original_status = message.get("status", 200)
-                original_headers = list(message.get("headers", []))
-            elif message["type"] == "http.response.body":
-                response_body.extend(message.get("body", b""))
-
-        await self.app(scope, receive, capture_send)
-
-        try:
-            data = _json.loads(bytes(response_body))
-            methods = data.get("token_endpoint_auth_methods_supported", [])
-            if "none" not in methods:
-                methods.append("none")
-                data["token_endpoint_auth_methods_supported"] = methods
-            patched = _json.dumps(data).encode()
-
-            new_headers = [(k, v) for k, v in original_headers if k != b"content-length"]
-            new_headers.append((b"content-length", str(len(patched)).encode()))
-
-            await send(
-                {
-                    "type": "http.response.start",
-                    "status": original_status,
-                    "headers": new_headers,
-                }
-            )
-            await send(
-                {
-                    "type": "http.response.body",
-                    "body": patched,
-                }
-            )
-            logger.debug("Patched auth metadata: added 'none' to token_endpoint_auth_methods_supported")
-        except Exception:
-            await send(
-                {
-                    "type": "http.response.start",
-                    "status": original_status,
-                    "headers": original_headers,
-                }
-            )
-            await send(
-                {
-                    "type": "http.response.body",
-                    "body": bytes(response_body),
-                }
-            )

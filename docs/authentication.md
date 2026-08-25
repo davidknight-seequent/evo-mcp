@@ -146,11 +146,11 @@ sequenceDiagram
     MCP-->>Client: 401 Unauthorized<br/>WWW-Authenticate: Bearer resource_metadata="..."
 
     Client->>MCP: GET /.well-known/oauth-authorization-server
-    Note over MCP: AuthMetadataPatchMiddleware<br/>appends "none" to<br/>token_endpoint_auth_methods_supported
+    Note over MCP: FastMCP advertises "none"<br/>for public client DCR
     MCP-->>Client: OAuth metadata (issuer, endpoints, ...)
 
     Note over Client,MCP: 2. Dynamic Client Registration
-    Client->>MCP: POST /auth/register<br/>{redirect_uris, token_endpoint_auth_method: "none", ...}
+    Client->>MCP: POST /register<br/>{redirect_uris, token_endpoint_auth_method: "none", ...}
     MCP-->>Client: {client_id, ...}
 
     Note over Client,IMS: 3. Authorization Code + PKCE
@@ -158,7 +158,7 @@ sequenceDiagram
     Note over MCP: OIDCProxy strips RFC 8707<br/>"resource" parameter<br/>(forward_resource=False)
     MCP->>IMS: GET /authorize<br/>?client_id=EVO_CLIENT_ID&code_challenge=...
     IMS-->>IMS: User signs in via browser
-    IMS->>MCP: GET /siginin-callback?code=AUTH_CODE
+    IMS->>MCP: GET /signin-callback?code=AUTH_CODE
     MCP->>IMS: POST /token (exchange auth code + PKCE verifier)
     IMS-->>MCP: IMS access token (upstream)
 
@@ -268,20 +268,9 @@ Leave it unset to preserve FastMCP's default behavior of accepting any client ca
 
 > **Note:** Enabling the consent screen in production is a future deployment task and is not required for local testing.
 
-## Current workarounds
+## Current workaround
 
-These patches work around upstream issues and should be removed when fixes are released.
-
-### 1. AuthMetadataPatchMiddleware
-
-**Problem:** The MCP Python SDK's `build_metadata()` hardcodes `token_endpoint_auth_methods_supported` to `["client_secret_post", "client_secret_basic"]`. Public clients need `"none"`.
-
-**Workaround:** ASGI middleware intercepts `GET /.well-known/oauth-authorization-server` and appends `"none"` to the list.
-
-**Remove when:** `mcp` SDK includes `"none"` natively in `build_metadata()`.
-**Tracking:** [python-sdk#2260](https://github.com/modelcontextprotocol/python-sdk/issues/2260)
-
-### 2. forward_resource=False
+### `forward_resource=False`
 
 **Problem:** MCP clients send an RFC 8707 `resource` parameter (the MCP server URL). Bentley IMS has its own resource model and rejects unknown resource URLs with `invalid_target`.
 

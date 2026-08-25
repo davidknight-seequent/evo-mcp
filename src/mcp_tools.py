@@ -31,11 +31,10 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 from fastmcp.utilities.logging import configure_logging
-from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from evo_mcp.client_auth import AuthMetadataPatchMiddleware, create_auth_provider
+from evo_mcp.client_auth import create_auth_provider
 from evo_mcp.tool_strategy import BOOTSTRAP_TOOLS, SearchEngine, ToolStrategy, apply_strategy
 from evo_mcp.tools import (
     register_admin_tools,
@@ -478,12 +477,10 @@ if __name__ == "__main__":
                 public_base_url.rstrip("/"),
                 oidcproxy_redirect_path,
             )
-        middleware = [Middleware(AuthMetadataPatchMiddleware)] if CLIENT_DELEGATED_AUTH else []
         mcp.run(
             transport="http",
             host=HTTP_HOST,
             port=HTTP_PORT,
-            middleware=middleware,
         )
 
     else:
