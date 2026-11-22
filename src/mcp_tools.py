@@ -188,17 +188,17 @@ if TOOL_FILTER in ["all", "data"]:  #  "data_agent"
     register_object_builder_tools(mcp)
     (register_remote_file_tools if REMOTE_FILE_TRANSFER else register_file_tools)(mcp)
     if TOOL_FILTER == "data":
-        print("Evo MCP Server configured for Data Agent")
+        logger.info("Evo MCP Server configured for Data Agent")
     else:
-        print("Evo MCP Server configured - Data tools enabled")
+        logger.info("Evo MCP Server configured - Data tools enabled")
 
 if TOOL_FILTER in ["all", "compute"]:
     register_compute_tools(mcp)
     register_object_staging_tools(mcp)
     if TOOL_FILTER == "compute":
-        print("Evo MCP Server configured for Compute Agent")
+        logger.info("Evo MCP Server configured for Compute Agent")
     else:
-        print("Evo MCP Server configured - Compute tools enabled")
+        logger.info("Evo MCP Server configured - Compute tools enabled")
 
 
 # =============================================================================
@@ -240,7 +240,7 @@ applied_strategy = apply_strategy(
     search_engine=SEARCH_ENGINE,
     always_visible=BOOTSTRAP_TOOLS,
 )
-print(f"Tool exposure strategy: {applied_strategy.value}")
+logger.info("Tool exposure strategy: %s", applied_strategy.value)
 
 
 @mcp.custom_route("/health", methods=["GET"], include_in_schema=False)
@@ -269,7 +269,7 @@ def get_objects_reference() -> str:
 # =============================================================================
 
 if TOOL_FILTER == "all":
-    print("Registering prompt for all tool types.")
+    logger.info("Registering prompt for all tool types.")
 
     @mcp.prompt(name="all_prompt")
     def all_prompt() -> str:
@@ -355,8 +355,9 @@ Use preview_csv_file to inspect uploaded CSV column names and types, then use
 build_and_create_pointset, build_and_create_line_segments,
 build_and_create_downhole_collection, or build_and_create_downhole_intervals.
 Supply uploaded file_ref values for every CSV parameter, including interval_files.
-Always validate with dry_run=True first, review errors/warnings and mappings with
-the user, then create with dry_run=False. Return full tool errors when a step fails.
+Object creation tools create objects by default. Use dry_run=True to validate without
+creating, review errors/warnings and mappings with the user, then call again with
+dry_run=False to create. Return full tool errors when a step fails.
 """
             )
         return """\
@@ -398,7 +399,7 @@ the user, then create with dry_run=False. Return full tool errors when a step fa
             x_column="X",
             y_column="Y",
             z_column="Z",
-            dry_run=True  # Validate first
+            dry_run=True  # Validate without creating
         )
         ```
 
@@ -416,7 +417,7 @@ the user, then create with dry_run=False. Return full tool errors when a step fa
             z_column="Z",
             start_index_column="start_idx",
             end_index_column="end_idx",
-            dry_run=True  # Validate first
+            dry_run=True  # Validate without creating
         )
         ```
 
@@ -446,7 +447,7 @@ the user, then create with dry_run=False. Return full tool errors when a step fa
                     "to_column": "TO"
                 }
             ],
-            dry_run=True  # Validate first
+            dry_run=True  # Validate without creating
         )
         ```
 
@@ -455,7 +456,7 @@ the user, then create with dry_run=False. Return full tool errors when a step fa
 
         ## Best Practices
 
-        1. **Always use dry_run=True first** - validates without creating
+        1. **Use dry_run=True to validate without creating**; creation is the default
         2. **Check column names** - use preview_csv_file to see available columns
         3. **Review warnings** - understand data quality before proceeding
 

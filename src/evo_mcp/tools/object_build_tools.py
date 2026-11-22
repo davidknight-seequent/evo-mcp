@@ -22,6 +22,7 @@ from typing import Optional, Union
 from uuid import UUID
 
 import pandas as pd
+from evo.common.exceptions import NotFoundException
 from evo.common.utils import Cache
 from evo_schemas.objects.downhole_collection import DownholeCollection_V1_3_0
 from evo_schemas.objects.downhole_intervals import DownholeIntervals_V1_3_0
@@ -40,6 +41,16 @@ from evo_mcp.utils.object_builders import (
 logger = logging.getLogger(__name__)
 
 
+async def _create_or_update(object_client, object_path: str, obj_dict: dict):
+    """Create the object, or publish a new version if one already exists at object_path."""
+    try:
+        existing = await object_client.download_object_by_path(object_path)
+    except NotFoundException:
+        return await object_client.create_geoscience_object(object_path, obj_dict), "created"
+    obj_dict["uuid"] = str(existing.metadata.id)
+    return await object_client.update_geoscience_object(obj_dict), "updated"
+
+
 def register_object_builder_tools(mcp):
     """Register all object builder tools."""
 
@@ -56,7 +67,7 @@ def register_object_builder_tools(mcp):
         attribute_columns: list[str] = [],
         tags: dict = {},
         coordinate_reference_system: Union[str, int] = "unspecified",
-        dry_run: bool = True,
+        dry_run: bool = False,
     ) -> dict:
         """Build and create a Pointset object from a CSV file.
 
@@ -65,7 +76,8 @@ def register_object_builder_tools(mcp):
 
         Args:
             workspace_id: Target Evo workspace UUID
-            object_path: Path for the new object (e.g., "/samples/locations.json")
+            object_path: Path for the object (e.g., "/samples/locations.json"). If an object
+                already exists there, a new version of it is published.
             object_name: Display name for the object
             description: Object description
             csv_file: Path to CSV file with point data (hosted: file_ref from prepare_file_upload)
@@ -75,7 +87,7 @@ def register_object_builder_tools(mcp):
             attribute_columns: Columns to include as attributes (empty = auto-detect all)
             tags: Optional tags dictionary
             coordinate_reference_system: CRS - either "unspecified" or an EPSG code (int)
-            dry_run: If True, validate only without creating (default: True)
+            dry_run: If True, validate only without creating (default: False)
 
         Returns:
             Dict with validation results and object info
@@ -187,10 +199,10 @@ def register_object_builder_tools(mcp):
                 }
 
             await data_client.upload_referenced_data(obj_dict)
-            metadata = await object_client.create_geoscience_object(object_path, obj_dict)
+            metadata, status = await _create_or_update(object_client, object_path, obj_dict)
 
             return {
-                "status": "created",
+                "status": status,
                 "object_id": str(metadata.id),
                 "name": metadata.name,
                 "path": metadata.path,
@@ -220,7 +232,7 @@ def register_object_builder_tools(mcp):
         segment_attribute_columns: list[str] = [],
         tags: dict = {},
         coordinate_reference_system: Union[str, int] = "unspecified",
-        dry_run: bool = True,
+        dry_run: bool = False,
     ) -> dict:
         """Build and create a LineSegments object from CSV files.
 
@@ -233,7 +245,8 @@ def register_object_builder_tools(mcp):
 
         Args:
             workspace_id: Target Evo workspace UUID
-            object_path: Path for the new object (e.g., "/lines/faults.json")
+            object_path: Path for the object (e.g., "/lines/faults.json"). If an object
+                already exists there, a new version of it is published.
             object_name: Display name for the object
             description: Object description
             vertices_file: Path to CSV with vertex coordinates (hosted: file_ref from prepare_file_upload)
@@ -247,7 +260,7 @@ def register_object_builder_tools(mcp):
             segment_attribute_columns: Segment attributes (empty = auto-detect)
             tags: Optional tags dictionary
             coordinate_reference_system: CRS - either "unspecified" or an EPSG code (int)
-            dry_run: If True, validate only without creating (default: True)
+            dry_run: If True, validate only without creating (default: False)
 
         Returns:
             Dict with validation results and object info
@@ -380,10 +393,10 @@ def register_object_builder_tools(mcp):
                 }
 
             await data_client.upload_referenced_data(obj_dict)
-            metadata = await object_client.create_geoscience_object(object_path, obj_dict)
+            metadata, status = await _create_or_update(object_client, object_path, obj_dict)
 
             return {
-                "status": "created",
+                "status": status,
                 "object_id": str(metadata.id),
                 "name": metadata.name,
                 "path": metadata.path,
@@ -417,7 +430,7 @@ def register_object_builder_tools(mcp):
         tags: dict = {},
         coordinate_reference_system: Union[str, int] = "unspecified",
         invert_z: bool = False,
-        dry_run: bool = True,
+        dry_run: bool = False,
     ) -> dict:
         """Build and create a DownholeCollection object from CSV files.
 
@@ -430,7 +443,8 @@ def register_object_builder_tools(mcp):
 
         Args:
             workspace_id: Target Evo workspace UUID
-            object_path: Path for the new object (e.g., "/drillholes/my_data.json")
+            object_path: Path for the object (e.g., "/drillholes/my_data.json"). If an object
+                already exists there, a new version of it is published.
             object_name: Display name for the object
             description: Object description
             collar_file: Path to collar CSV file (hosted: file_ref from prepare_file_upload)
@@ -455,7 +469,7 @@ def register_object_builder_tools(mcp):
             tags: Optional tags dictionary
             coordinate_reference_system: CRS - either "unspecified" or an EPSG code (int)
             invert_z: If True, negate dip values in survey data. Set depending on the convention followed. Default: False.
-            dry_run: If True, validate only without creating (default: True)
+            dry_run: If True, validate only without creating (default: False)
 
         Returns:
             Dict with validation results and object info (or creation result if not dry_run)
@@ -635,10 +649,10 @@ def register_object_builder_tools(mcp):
                 }
 
             await data_client.upload_referenced_data(obj_dict)
-            metadata = await object_client.create_geoscience_object(object_path, obj_dict)
+            metadata, status = await _create_or_update(object_client, object_path, obj_dict)
 
             return {
-                "status": "created",
+                "status": status,
                 "object_id": str(metadata.id),
                 "name": metadata.name,
                 "path": metadata.path,
@@ -674,7 +688,7 @@ def register_object_builder_tools(mcp):
         is_composited: bool = False,
         tags: dict = {},
         coordinate_reference_system: Union[str, int] = "unspecified",
-        dry_run: bool = True,
+        dry_run: bool = False,
     ) -> dict:
         """Build and create a DownholeIntervals object from a CSV file.
 
@@ -687,7 +701,8 @@ def register_object_builder_tools(mcp):
 
         Args:
             workspace_id: Target Evo workspace UUID
-            object_path: Path for the new object (e.g., "/intervals/assay.json")
+            object_path: Path for the object (e.g., "/intervals/assay.json"). If an object
+                already exists there, a new version of it is published.
             object_name: Display name for the object
             description: Object description
             csv_file: Path to CSV file with interval data (hosted: file_ref from prepare_file_upload)
@@ -707,7 +722,7 @@ def register_object_builder_tools(mcp):
             is_composited: Whether the intervals are composited (default: False)
             tags: Optional tags dictionary
             coordinate_reference_system: CRS - either "unspecified" or an EPSG code (int)
-            dry_run: If True, validate only without creating (default: True)
+            dry_run: If True, validate only without creating (default: False)
 
         Returns:
             Dict with validation results and object info
@@ -850,10 +865,10 @@ def register_object_builder_tools(mcp):
                 }
 
             await data_client.upload_referenced_data(obj_dict)
-            metadata = await object_client.create_geoscience_object(object_path, obj_dict)
+            metadata, status = await _create_or_update(object_client, object_path, obj_dict)
 
             return {
-                "status": "created",
+                "status": status,
                 "object_id": str(metadata.id),
                 "name": metadata.name,
                 "path": metadata.path,

@@ -10,6 +10,7 @@ import asyncio
 import logging
 from uuid import UUID
 
+from evo.discovery import Organization
 from evo.objects.typed import object_from_uuid
 from evo.widgets import get_portal_url, get_viewer_url
 from fastmcp import Context
@@ -217,7 +218,7 @@ def register_general_tools(mcp):
     @mcp.tool()
     async def list_my_instances(
         ctx: Context,
-    ) -> list[dict]:
+    ) -> list[Organization]:
         """List the Evo instances (organizations/tenants) the user can access.
 
         Use this only to discover or choose an instance — typically before
@@ -235,7 +236,7 @@ def register_general_tools(mcp):
     async def select_instance(
         instance_name: str | None = None,
         instance_id: UUID | None = None,
-    ) -> dict | None:
+    ) -> Organization:
         """Select an instance to connect to.
 
         Subsequent tool invocations like "list workspaces" will act on this
